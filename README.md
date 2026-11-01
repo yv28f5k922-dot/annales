@@ -2,7 +2,7 @@
 
 A real-time grand strategy game of the modern world (2026 start), modelled on the Hearts of Iron IV mod Millennium Dawn. It runs as one self-contained HTML page.
 
-**Current build:** Build 24.1 "Patton" (2026-11-01): step 24, resources and the world commodity market, shown everywhere in the game.
+**Current build:** Build 24.2 "Ho Chi Minh" (2026-11-01): step 24, resources and the world commodity market, with deposits in their real provinces (`docs/step24-deposits.md`).
 **Live game:** https://claude.ai/artifact/FSn6D2BJ3UP4Yzg9N8AxMi
 
 ## Layout
