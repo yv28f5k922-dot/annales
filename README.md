@@ -2,7 +2,7 @@
 
 A real-time grand strategy game of the modern world (2026 start), modelled on the Hearts of Iron IV mod Millennium Dawn. It runs as one self-contained HTML page.
 
-**Current build:** Build 23 "Garibaldi" (2026-10-31).
+**Current build:** Build 24 "Nehru" (2026-11-01): step 24, resources and the world commodity market.
 **Live game:** https://claude.ai/artifact/FSn6D2BJ3UP4Yzg9N8AxMi
 
 ## Layout
@@ -39,7 +39,7 @@ Open `annales-world.html` in a browser to play. It loads d3 7.9.0 and topojson-c
 - `docs/step24-brief.md`: step 24 split into four parts, the existing code each part touches, and exact formulas for part 1.
 - `docs/annales-plan-3.md`: the round 3 plan (steps 24–31).
 
-The full code map, development plan (steps 1–31), build notes and test kit live in the Claude project "Pus boys inc." (`claude/annales-code-map.md`, `claude/annales-plan.md`, `claude/annales-plan-3.md`, `claude/annales-build-21.md` to `-23.md`, `claude/annales-test-kit*.md`). Next planned work: step 24, resources and the world commodity market.
+The full code map, development plan (steps 1–31), build notes and test kit live in the Claude project "Pus boys inc." (`claude/annales-code-map.md`, `claude/annales-plan.md`, `claude/annales-plan-3.md`, `claude/annales-build-21.md` to `-23.md`, `claude/annales-test-kit*.md`). Next planned work: step 25, energy politics.
 
 ## Workflow
 

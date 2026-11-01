@@ -469,7 +469,7 @@ const GD = window.GAMEDATA;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const START_M = 10, START_Y = 2026; // November 2026
 const SAVE_KEY = 'annales-world-v2', AI_KEY = 'annales-world-ai';
-const BUILD = { n: 23, name: 'Garibaldi', date: '2026-10-31' };
+const BUILD = { n: 24, name: 'Nehru', date: '2026-11-01' };
 const buildStr = () => `Build ${BUILD.n} “${BUILD.name}” (${BUILD.date})`;
 const vchipHTML = () => `<span class="vchip" title="${buildStr()}${G && G.buildFrom != null && G.buildFrom !== BUILD.n ? ' · this save began on build ' + G.buildFrom : ''}">B${BUILD.n} · ${BUILD.name}</span>`; // plan "Build names": shown in the top bar, the choice screen and settings; saved as G.build
 const RENAME = { 'Republic of Serbia': 'Serbia', 'United Republic of Tanzania': 'Tanzania', 'The Bahamas': 'Bahamas', 'eSwatini': 'Eswatini', 'Democratic Republic of the Congo': 'DR Congo', 'Republic of the Congo': 'Congo', 'Federated States of Micronesia': 'Micronesia', 'Spratly Is.': 'Spratly Islands' };

@@ -10,7 +10,7 @@ One step per session, in order. Steps 24 and 26 are large; split them across two
 **Agreed with the owner (2026-10-31):** resource overhaul with a real-currency world market and 8 core resources, energy politics, a nuclear escalation ladder, HOI4-style peace conferences, militias outside the Middle East, refugees, a monthly newspaper, two log fixes (AI buys on the equipment market; counter-insurgency in occupied foreign land). National focus trees are on the back burner. Images come later (Step 31 is a placeholder; don't start it until the owner says so).
 
 ## Status
-- [ ] 24 Resources and the world commodity market: rework (resources, `RINP` inputs, `resAv`, resource access), new (8 core resources, world prices, farms, semiconductor fabs, buying with treasury money, AI equipment purchases).
+- [x] 24 Resources and the world commodity market — Build 24 "Nehru" (2026-11-01), published. Code by Gemini 3.8, applied, fixed and tested by Claude (see docs/step24-brief.md): rework (resources, `RINP` inputs, `resAv`, resource access), new (8 core resources, world prices, farms, semiconductor fabs, buying with treasury money, AI equipment purchases).
 - [ ] 25 Energy politics: new (pipelines, LNG, producer cartels, strategic reserves, energy cut-offs), patch (step 24's market, blockades, summits).
 - [ ] 26 Nuclear escalation ladder: rework (nuclear weapons, untouched since early builds), new (uranium and enrichment, inspections, alert levels, deterrence, escalation), patch (summits, sanctions reasons, step 18 strikes).
 - [ ] 27 Peace conferences: rework (`autoTerms`, `applyPeace` for player wars), new (war score spending, conference screen, AI bids).
@@ -21,7 +21,7 @@ One step per session, in order. Steps 24 and 26 are large; split them across two
 
 ---
 
-## Step 24: Resources and the world commodity market
+## Step 24: Resources and the world commodity market — Build 24 "Nehru" (2026-11-01) (done)
 **Rework:** the current resources (province resources and multipliers, `access`, `resAv`, `RINP`, `lineRes`, the gas and grain shortage effects, the steel mill, electronics and chemical plants) and the "imports at 72–82%" rule. **New:** 8 core resources with stocks, a world market with prices in real currency that move with supply and demand, farms, semiconductor fabs. **Patch:** `bldLedger`, `econ` (spending), trade (`tradeWeb`), blockades (`G.blk`), sanctions (technology and full embargoes), step 16's lines, AI building (`aiBuild`), `stratBudget`.
 **At risk:** production lines and their efficiency (step 16), munition lines (step 18), the gas-shortage growth penalty and grain-shortage stability loss, the balance targets (GDP ×1.7–2.0 over 10 years, treasury about 4 months), AI budgets, `REVC` caching, speed, old saves.
 
