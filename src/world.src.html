@@ -469,7 +469,7 @@ const GD = window.GAMEDATA;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const START_M = 10, START_Y = 2026; // November 2026
 const SAVE_KEY = 'annales-world-v2', AI_KEY = 'annales-world-ai';
-const BUILD = { n: 24.2, name: 'Ho Chi Minh', date: '2026-11-01' };
+const BUILD = { n: 24.3, name: 'Kutuzov', date: '2026-11-01' };
 const buildStr = () => `Build ${BUILD.n} “${BUILD.name}” (${BUILD.date})`;
 const vchipHTML = () => `<span class="vchip" title="${buildStr()}${G && G.buildFrom != null && G.buildFrom !== BUILD.n ? ' · this save began on build ' + G.buildFrom : ''}">B${BUILD.n} · ${BUILD.name}</span>`; // plan "Build names": shown in the top bar, the choice screen and settings; saved as G.build
 const RENAME = { 'Republic of Serbia': 'Serbia', 'United Republic of Tanzania': 'Tanzania', 'The Bahamas': 'Bahamas', 'eSwatini': 'Eswatini', 'Democratic Republic of the Congo': 'DR Congo', 'Republic of the Congo': 'Congo', 'Federated States of Micronesia': 'Micronesia', 'Spratly Is.': 'Spratly Islands' };
@@ -888,6 +888,7 @@ function econ(n) {
 }
 function aiMilitary(n, human, A) {
   if (!human) return aiMilitary0(n, human, A);
+  return; // Build 24.3: nothing moves a human player's armies, fleets or wings but the player
   const mine = G.units.filter(u => u.t === 'a' && commander(u) === n.id);
   if (G.autoBy[n.id] === false && !mine.some(u => u.cm && u.cm !== 'manual')) return;
   const asg = mine.filter(u => armyMode(u) === 'assist' && !u.plan).map(u => [u, u.path, u.mv]); for (const [u] of asg) u.path = [];
@@ -2175,6 +2176,8 @@ function upgrade() {
   if (!G) return;
   if (G.pmil != null && PL == null && G.mil) { const m = milById(G.pmil); if (m && ['fighting', 'talks'].includes(m.state)) { if (!gnOf(m)) gnMake(m); PL = m.gn; G.humans = [m.gn]; } } if (PL != null && PL >= GNB && G.pend && G.pend[PL]) G.pend[PL] = G.pend[PL].filter(p => p.type === 'militia_talks'); // step 21; build 23: no state events for a group
   if (!G.syrFix) { G.syrFix = 1; if (SY() >= 2025 && !(G.scenario && G.scenario.kind)) { const by = {}; for (const n of G.nations) if (n.alive) by[n.a3] = n.id; syrIran(x => by[x]); } }
+  if (G.sum) { const S = G.sum, isUN = x => SUMF[x.key] && SUMF[x.key].un; if (S.open && isUN(S.open)) S.open = null; S.q = (S.q || []).filter(x => !isUN(x)); if (!S.open) S.open = S.q.shift() || null; if (S.pend) { delete S.pend.unga; delete S.pend.unsc; } }
+  for (const u of G.units || []) if (u.t === 'a' && isHuman(commander(u))) { u.plan = null; u.cm = null; u.sug = null; }
   if (!G.orders) G.orders = []; if (G.day == null) { G.day = 0; G.hr = 0; } // turn-based saves start on the 1st of their month
   if (G.diffV !== 2) { G.diff = [0, 0, 1, 2, 3][G.diff ?? 2] ?? 1; G.diffV = 2; G.ap = {}; } // five old tiers -> four; action points dropped
   if (!G.pop) initPopulation();
@@ -5170,7 +5173,7 @@ function unPredict(kind, target, by) {
   return { v, vetoBy, pass, body: K.body };
 }
 function unPropose(by, kind, target) {
-  unInit(); const U = G.un; if (!UNKINDS[kind] || !N_(target).alive) return { ok: false, msg: 'Invalid resolution.' };
+  unInit(); const U = G.un; if (!UNKINDS[kind] || !UNASK.includes(kind) || !N_(target).alive) return { ok: false, msg: 'Invalid resolution.' };
   if ((U.next[by] || 0) > G.month) return { ok: false, msg: `We can table another resolution in ${dateStr(U.next[by])}.` };
   if (kind === 'ceasefire' && !warsOf(target).length) return { ok: false, msg: `${nname(target)} is not at war.` };
   if (kind === 'nonpro' && N_(target).nukeProg == null && !nukesOf(target)) return { ok: false, msg: `${nname(target)} has no nuclear programme.` };
@@ -5202,12 +5205,13 @@ function unMonth() {
   unInit(); const U = G.un; U.p5 = U.p5.filter(x => N_(x).alive); if (G.month - U.term >= 24) unElect(); U.sc = U.sc.filter(x => N_(x).alive);
   // step 19: resolutions are tabled at the General Assembly and emergency Security Council sessions (summitMonth)
 }
+const UNASK = ['condemn', 'aid', 'sanctions']; // Build 24.3: what a country can still ask the UN for
 function unHTML() {
-  unInit(); const U = G.un, me = PL, F = UI.unForm || (UI.unForm = { kind: 'condemn', target: null });
+  unInit(); const U = G.un, me = PL, F = UI.unForm || (UI.unForm = { kind: 'condemn', target: null }); if (!UNASK.includes(F.kind)) F.kind = 'condemn';
   const tgt = F.target != null && N_(F.target).alive ? F.target : null; const pred = tgt != null ? unPredict(F.kind, tgt, me) : null; const wait = (U.next[me] || 0) > G.month;
   return `<div class="sect"><div class="eyebrow">United Nations</div>
     <p class="small"><b>Security Council:</b> ${U.p5.map(x => `<b>${esc(nname(x))}</b>`).join(', ')} <span class="muted">(permanent, with veto)</span>; ${U.sc.map(x => esc(nname(x))).join(', ')} <span class="muted">(elected until ${shortDate(U.term + 24)})</span>.</p>
-    <div class="row"><label class="fl">Resolution<select id="un-kind">${Object.entries(UNKINDS).map(([k, v]) => `<option value="${k}" ${F.kind === k ? 'selected' : ''}>${v.l} · ${v.body === 'sc' ? 'Security Council' : 'General Assembly'}</option>`).join('')}</select></label>
+    <div class="row"><label class="fl">Resolution<select id="un-kind">${Object.entries(UNKINDS).filter(([k]) => UNASK.includes(k)).map(([k, v]) => `<option value="${k}" ${F.kind === k ? 'selected' : ''}>${v.l} · ${v.body === 'sc' ? 'Security Council' : 'General Assembly'}</option>`).join('')}</select></label>
     <label class="fl">On<select id="un-target"><option value="">Choose a country…</option>${nationOpts(tgt, n => !n.horde)}</select></label></div>
     <p class="small muted">${esc(UNKINDS[F.kind].d)}. ${UNKINDS[F.kind].body === 'sc' ? 'Needs 9 of 15 votes and no veto from a permanent member.' : 'Needs more votes for than against.'}</p>
     ${pred ? `<p class="small">Likely vote: <span class="pos">${pred.v.yes.length} for</span>, <span class="neg">${pred.v.no.length} against</span>, ${pred.v.abstain.length} abstaining${pred.vetoBy.length ? ` · <span class="neg">veto: ${pred.vetoBy.map(x => esc(nname(x))).join(', ')}</span>` : ''} → ${pred.pass ? '<b class="pos">passes</b>' : '<b class="neg">fails</b>'}</p>` : ''}
@@ -7117,7 +7121,7 @@ const BCH = { // player choices in a battle
 const RETO = { never: .05, normal: .15, early: .35 }, BC0 = { dir: 'front', res: 'hold', ret: 'normal', focus: 'bal', sup: 'none' };
 const PLANK = { front: 'Hold the front', off: 'Offensive', fall: 'Fall back to', obj: 'Objective', spear: 'Spearhead', inv: 'Naval invasion' };
 const CMODE = { manual: 'Manual', assist: 'Assisted', auto: 'Automatic' };
-const armyMode = u => u.cm || (G.autoBy && G.autoBy[commander(u)] === false ? 'manual' : 'auto');
+const armyMode = u => isHuman(commander(u)) ? 'manual' : u.cm || (G.autoBy && G.autoBy[commander(u)] === false ? 'manual' : 'auto'); // Build 24.3: human players command manually only
 let WMOVED = false;
 // ---- encirclement: land reachable from our supply network without crossing hostile-held provinces ----
 function supplyPocket(n) { return supNet(n).pk; } // step 10: land our supply network reaches, not hostile-held
@@ -7300,7 +7304,7 @@ function planMove(u) {
 }
 // every 10 days in war: armies with plans, the AI and automatic armies re-plan
 function planDay() {
-  for (const u of G.units) if (u.t === 'a' && u.plan) planMove(u);
+  for (const u of G.units) if (u.t === 'a' && u.plan && !isHuman(commander(u))) planMove(u);
   const front = new Set(); for (let i = 0; i < NP; i++) { const a = G.ctrl[i]; for (const j of NB[i]) { const b = G.ctrl[j]; if (a !== b && hostile(a, b)) { front.add(a); break; } } }
   for (const n of G.nations) { if (!n.alive || !front.has(n.id)) continue; if (!isHuman(n.id)) aiMilitary(n); else aiMilitary(n, true); } // only countries with a land front re-plan
 }
@@ -7341,6 +7345,10 @@ function armyOrdersHTML0(u) {
   const pick = ['fall', 'obj', 'spear', 'inv'].map(k => `<button class="btn small" data-plan="${k}" aria-pressed="${UI.planPick === k}">${PLANK[k]}…</button>`).join('') + (paraOK(u) ? `<button class="btn small" data-plan="drop" aria-pressed="${UI.planPick === 'drop'}" title="Jump from an airbase to a province within ${AIR_RANGE} km">Airborne drop…</button>` : '');
   const kinds = {}; for (const t of dvOf(u)) kinds[t] = (kinds[t] || 0) + 1; const N = N_(u.n), here = G.units.filter(x => x !== u && x.t === 'a' && commander(x) === id && x.at.k === u.at.k && x.at.i === u.at.i);
   const dv = Object.entries(kinds).map(([t, k]) => `<span class="dvchip">${k} × ${esc(tplOf(N, +t).nm)}${dvOf(u).length > 1 ? ` <button class="btn small" data-dv="${t}" title="Detach one into a new army">Detach</button>${here.slice(0, 2).map(x => `<button class="btn small" data-dv="${t}" data-to="${x.id}">→ #${x.id}</button>`).join('')}` : ''}</span>`).join('');
+  if (isHuman(id)) {
+    const drop = paraOK(u) ? `<button class="btn small" data-plan="drop" aria-pressed="${UI.planPick === 'drop'}" title="Jump from an airbase to a province within ${AIR_RANGE} km">Airborne drop…</button>` : '';
+    return `<div class="aorders"><span class="small">Org. ${Math.round((u.org ?? 1) * 100)}%${u.at.k === 'p' && encircled(u.n, u.at.i) ? ' · <b class="warn">encircled</b>' : ''} · click a province on the map to march there.</span>${drop ? `<div class="ubtns">${drop}</div>` : ''}${UI.planPick === 'drop' ? '<div class="small">Click a province for the airborne drop.</div>' : ''}<div class="dvlist">${dv}</div></div>`;
+  }
   const sug = m === 'assist' && u.sug && u.sug.length ? `<div class="small">Suggested: march to ${esc(u.sug[u.sug.length - 1].k === 'p' ? PN(u.sug[u.sug.length - 1].i) : 'the sea')} <button class="btn small" data-do="sugok">Apply</button></div>` : m === 'assist' ? '<div class="small muted">No suggestion: the staff would hold here.</div>' : '';
   return `<div class="aorders"><div class="seg">${cm}</div><span class="small">${P ? `Plan: ${PLANK[P.k]}${P.t != null ? ' vs ' + esc(nname(P.t)) : P.p != null ? ' ' + esc(PN(P.p)) : ''} <button class="btn small" data-plan="clear">Clear</button>` : 'No plan'} · org. ${Math.round((u.org ?? 1) * 100)}%${u.at.k === 'p' && encircled(u.n, u.at.i) ? ' · <b class="warn">encircled</b>' : ''}</span>
     <div class="ubtns">${fb}${pick}</div>${UI.planPick ? `<div class="small">Click a province for: ${(PLANK[UI.planPick] || 'airborne drop').toLowerCase()}.</div>` : ''}${sug}<div class="dvlist">${dv}</div></div>`;
@@ -8949,7 +8957,7 @@ function sumMembers(key) {
   const b = sumKey(key); return b ? b.members.filter(m => N_(m) && N_(m).alive) : [];
 }
 function sumMonths(key) { if (SUMF[key]) return SUMF[key].mo; const b = sumKey(key); if (!b || b.type === 'coalition') return []; const r = SUMB.find(([re]) => re.test(b.name)); return r ? r[1] : [(b.id * 5 + 3) % 12]; }
-const sumKeys = () => ['unga', 'g7', 'g20', 'brics', ...(G.blocs || []).filter(b => b.type !== 'coalition').map(b => 'b' + b.id)];
+const sumKeys = () => ['g7', 'g20', 'brics', ...(G.blocs || []).filter(b => b.type !== 'coalition').map(b => 'b' + b.id)];
 const greatPow = () => { const g = G.nations.filter(n => n.alive && !n.horde).sort((a, b) => gdpOf(b.id) - gdpOf(a.id)).slice(0, 8).map(n => n.id); unInit(); return [...new Set([...G.un.p5.filter(x => N_(x).alive), ...g])]; };
 const itemLabel = it => it.body === 'bloc' ? `${SUMK[it.k]}${it.k === 'spend' ? ': ' + it.v + '% of the budget' : it.k === 'exercise' ? '' : it.k === 'clause' ? ' ' + (CLAUSES[it.c] ? CLAUSES[it.c].l.toLowerCase() : it.c) : ' ' + nname(it.t)}` : it.k === 'climate' ? 'Climate and adaptation fund' : `${(UNKINDS[it.k] || { l: it.k }).l}${it.t != null ? ' · ' + nname(it.t) : ''}`;
 const lc1 = l => l ? l[0].toLowerCase() + l.slice(1) : l;
@@ -9038,9 +9046,15 @@ function sumNew(key, kind, items) {
 function sumQueue(s) { if (!s) return; const S = SUM(); S.last[s.key] = G.month; if (s.kind === 'emerg') S.em[s.key] = G.month; S.pend[s.key] = (S.pend[s.key] || []).filter(it => !s.items.some(x => itemKey(x) === itemKey(it))); if (s.pl) { S.q.push(s); if (!S.open) sumNextOpen(); } else sumHold(s); }
 function sumNextOpen() { const S = SUM(); S.open = S.q.shift() || null; if (S.open) { S.open.sp = sumSpeakers(S.open); log(`${S.open.l} opens. Our delegation takes its seat.`, 'diplo', [PL], 'dip'); } }
 // a minor trigger waits for the forum's next scheduled summit
-function sumDefer(key, it) { const S = SUM(), L = S.pend[key] = S.pend[key] || []; if (L.some(x => itemKey(x) === itemKey(it))) return; L.push({ ...it, at: G.month }); if (L.length > 6) L.shift(); }
+// Build 24.3: the UN no longer meets. An aid, sanctions or condemnation item meant for it is put straight to a vote by its sponsor; other UN items lapse.
+function unDirect(it) {
+  if (!['aid', 'sanctions', 'condemn'].includes(it.k) || it.t == null || !N_(it.t) || !N_(it.t).alive) return;
+  let by = it.by; if (by == null || by < 0 || !N_(by) || !N_(by).alive || isHuman(by)) by = greatPow().filter(x => x !== it.t && !isHuman(x) && N_(x).alive && !isAllied(x, it.t)).sort((p, q) => it.k === 'aid' ? rel(q, it.t) - rel(p, it.t) : rel(p, it.t) - rel(q, it.t))[0];
+  if (by != null) unPropose(by, it.k, it.t);
+}
+function sumDefer(key, it) { if (SUMF[key] && SUMF[key].un) return unDirect(it); const S = SUM(), L = S.pend[key] = S.pend[key] || []; if (L.some(x => itemKey(x) === itemKey(it))) return; L.push({ ...it, at: G.month }); if (L.length > 6) L.shift(); }
 function sumEmerg(key, it) {
-  const S = SUM(); if (S.em[key] === G.month) { const s = S.q.find(x => x.key === key && x.m === G.month) || (S.open && S.open.key === key && S.open.m === G.month ? S.open : null); if (s && s.items.length < 4 && !s.items.some(x => itemKey(x) === itemKey(it))) s.items.push({ ...it, at: G.month }); else sumDefer(key, it); return; }
+  if (SUMF[key] && SUMF[key].un) return unDirect(it); const S = SUM(); if (S.em[key] === G.month) { const s = S.q.find(x => x.key === key && x.m === G.month) || (S.open && S.open.key === key && S.open.m === G.month ? S.open : null); if (s && s.items.length < 4 && !s.items.some(x => itemKey(x) === itemKey(it))) s.items.push({ ...it, at: G.month }); else sumDefer(key, it); return; }
   sumQueue(sumNew(key, 'emerg', [it]));
 }
 function sumBlocsOf(id) { return (G.blocs || []).filter(b => b.type !== 'coalition' && b.members.includes(id)); }
@@ -10105,9 +10119,9 @@ function applyCmd(nation, cmd, remote) {
       case 'split': if (u && u.str >= 2 && (u.t !== 'a' || dvOf(u).length > 1)) { const half = u.str / 2; const nu = u.t === 'a' ? splitArmy(u, half) : (u.str = half, splitFW(u, newUnit(u.n, u.t, half, { ...u.at }))); if (u.ctl != null) { nu.ctl = u.ctl; nu.lentUntil = u.lentUntil; } r = { ok: true, unit: nu.id }; } break;
       case 'merge': if (u) { const here = G.units.filter(x => x !== u && x.n === u.n && x.t === u.t && x.at.k === u.at.k && x.at.i === u.at.i); here.forEach(x => u.t === 'a' ? mergeArmy(u, x) : mergeFW(u, x)); G.units = G.units.filter(x => !here.includes(x)); r = { ok: true }; } break;
       case 'pend': resolvePending(cmd.pid, cmd.opt); r = { ok: true }; break;
-      case 'cmode': if (u && u.t === 'a' && CMODE[cmd.m]) { u.cm = cmd.m; if (cmd.m !== 'assist') u.sug = null; else aiMilitary(N_(nation), true); r = { ok: true, msg: `Army #${u.id}: ${CMODE[cmd.m].toLowerCase()} control.` }; } break;
-      case 'sugok': if (u && u.sug) { u.path = u.sug; u.sug = null; u.man = true; u.mv = 0; r = { ok: true, msg: `Army #${u.id} marches (about ${etaOf(u)} days).` }; } break;
-      case 'plan': if (u && u.t === 'a') { const P = cmd.plan; if (!P) { u.plan = null; r = { ok: true, msg: `Army #${u.id}: plan cleared.` }; break; } if (!PLANK[P.k]) break; if (P.k !== 'front' && P.k !== 'off' && !(P.p >= 0 && PROV[P.p])) break; if (P.k === 'inv' && PROV[P.p].port < 0) { r = { ok: false, msg: 'A naval invasion needs a coastal province.' }; break; } if (P.k !== 'front' && P.k !== 'off' && !passable(u.n, P.p)) { r = { ok: false, msg: `We have no right to enter ${nname(G.ctrl[P.p])}.` }; break; }
+      case 'cmode': if (isHuman(nation)) { r = { ok: false, msg: 'Our armies take only our orders.' }; break; } if (u && u.t === 'a' && CMODE[cmd.m]) { u.cm = cmd.m; if (cmd.m !== 'assist') u.sug = null; else aiMilitary(N_(nation), true); r = { ok: true, msg: `Army #${u.id}: ${CMODE[cmd.m].toLowerCase()} control.` }; } break;
+      case 'sugok': if (u && u.sug && !isHuman(nation)) { u.path = u.sug; u.sug = null; u.man = true; u.mv = 0; r = { ok: true, msg: `Army #${u.id} marches (about ${etaOf(u)} days).` }; } break;
+      case 'plan': if (u && u.t === 'a') { const P = cmd.plan; if (P && isHuman(nation)) { r = { ok: false, msg: 'Our armies take only our orders.' }; break; } if (!P) { u.plan = null; r = { ok: true, msg: `Army #${u.id}: plan cleared.` }; break; } if (!PLANK[P.k]) break; if (P.k !== 'front' && P.k !== 'off' && !(P.p >= 0 && PROV[P.p])) break; if (P.k === 'inv' && PROV[P.p].port < 0) { r = { ok: false, msg: 'A naval invasion needs a coastal province.' }; break; } if (P.k !== 'front' && P.k !== 'off' && !passable(u.n, P.p)) { r = { ok: false, msg: `We have no right to enter ${nname(G.ctrl[P.p])}.` }; break; }
         const old = u.plan; u.plan = { k: P.k, t: P.t ?? null, p: P.p ?? null }; u.man = false; u.path = []; u.mv = 0; planMove(u); if ((P.k === 'obj' || P.k === 'spear' || P.k === 'inv' || P.k === 'fall') && !u.path.length && !(u.at.k === 'p' && u.at.i === P.p)) { u.plan = old; r = { ok: false, msg: 'No route there.' }; break; }
         r = { ok: true, msg: `Army #${u.id}: ${PLANK[P.k].toLowerCase()}${P.p != null ? ' ' + PN(P.p) : P.t != null ? ' against ' + nname(P.t) : ''}${u.path.length ? ` (about ${etaOf(u)} days)` : ''}.` }; } break;
       case 'dv': if (u && u.t === 'a' && u.at.k === 'p') { const t = +cmd.t, i = dvOf(u).lastIndexOf(t); if (i < 0 || u.dv.length < 2) break; const N = N_(u.n), m0 = tplMan(N, t), men = m0 * u.str / nomMan(u); u.dv.splice(i, 1); u.str -= men; u.full = Math.max(u.str, (u.full ?? u.str + m0) - m0); u.s0 = u.str;
@@ -10119,7 +10133,7 @@ function applyCmd(nation, cmd, remote) {
       case 'chat': applyChat(cmd.t, cmd.text, cmd.out); r = { ok: true }; break;
       case 'rchat': rulesChat(cmd.t, cmd.text); r = { ok: true }; break;
       case 'dm': chat(cmd.t, 'you', cmd.text); chat(nation, 'them', cmd.text, cmd.t); r = { ok: true }; break;
-      case 'auto': G.autoBy[nation] = !!cmd.on; r = { ok: true }; break;
+      case 'auto': G.autoBy[nation] = false; r = { ok: true }; break;
       case 'budget': if (BUDGET.some(([k]) => k === cmd.key)) r = order('budget', null, { key: cmd.key, val: +cmd.val }); break;
       case 'cheat': if (!MP.on) { r = applyCheat(cmd.c); } break;
       case 'diff': if (!MP.on) { G.diff = clamp(cmd.d, 0, 3); log(`Difficulty set to ${DF().name}.`, 'event', [nation]); r = { ok: true, msg: `Difficulty: ${DF().name}.` }; } break;
@@ -11240,8 +11254,7 @@ function renderMil() {
   ${forcesHTML()}
   ${pzHTML()}
   <div class="sect"><div class="eyebrow">Forces · ${units.length} units</div>
-    <div class="nlist">${units.map(u => `<button class="nrow" data-unit="${u.id}" aria-current="${UI.selUnit === u.id}"><span class="sw" style="background:${u.t === 'a' ? rgbStr(n.color) : u.t === 'f' ? '#9cc3d4' : (u.mis ? MIS[u.mis.type].c : '#c9d3d6')}"></span><span class="nm">${{ a: 'Army', f: 'Fleet', w: 'Air wing' }[u.t]} #${u.id} · ${u.at.k === 'p' ? esc(PN(u.at.i)) : 'at sea'}${u.t === 'w' && u.mis ? ' · ' + MIS[u.mis.type].l.toLowerCase() : ''}${u.n !== me ? ' · lent by ' + esc(nname(u.n)) : ''}${genOf(u) ? ' · ' + esc(genOf(u).name) : ''}${u.t === 'a' && supplyOf(u) < .6 ? ' <span class="tag war">low supply</span>' : ''}</span><span class="relnum">${u.t === 'a' ? fmtK(u.str) : Math.round(u.str) + (u.t === 'f' ? ' sh' : ' ac')}</span><span class="relnum">${u.path.length ? etaOf(u) + 'd' : ''}</span></button>`).join('')}</div>
-    <label class="small muted" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="auto" ${G.autoBy[PL] !== false ? 'checked' : ''} style="width:auto;accent-color:#d2a750"> Generals command idle units in wartime</label></div>
+    <div class="nlist">${units.map(u => `<button class="nrow" data-unit="${u.id}" aria-current="${UI.selUnit === u.id}"><span class="sw" style="background:${u.t === 'a' ? rgbStr(n.color) : u.t === 'f' ? '#9cc3d4' : (u.mis ? MIS[u.mis.type].c : '#c9d3d6')}"></span><span class="nm">${{ a: 'Army', f: 'Fleet', w: 'Air wing' }[u.t]} #${u.id} · ${u.at.k === 'p' ? esc(PN(u.at.i)) : 'at sea'}${u.t === 'w' && u.mis ? ' · ' + MIS[u.mis.type].l.toLowerCase() : ''}${u.n !== me ? ' · lent by ' + esc(nname(u.n)) : ''}${genOf(u) ? ' · ' + esc(genOf(u).name) : ''}${u.t === 'a' && supplyOf(u) < .6 ? ' <span class="tag war">low supply</span>' : ''}</span><span class="relnum">${u.t === 'a' ? fmtK(u.str) : Math.round(u.str) + (u.t === 'f' ? ' sh' : ' ac')}</span><span class="relnum">${u.path.length ? etaOf(u) + 'd' : ''}</span></button>`).join('')}</div></div>
   ${armsHTML()}
   ${generalsHTML()}
   ${nuclearHTML()}
