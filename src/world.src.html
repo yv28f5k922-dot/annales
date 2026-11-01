@@ -7703,7 +7703,7 @@ function milPlay0(a, o) {
     if (nm) m.name = nm; if (ld) m.ldr = ld; if (IDEO[o.ideo] && o.ideo !== 'jihad') m.ideo = o.ideo; if (MIL_GOALS[o.goal] && o.goal !== 'religious') m.goal = o.goal; if (o.aims) m.aims = String(o.aims).slice(0, 120);
     if (cs.length) { m.flag = { p: ['h3', 'v3', 'triangle', 'canton', 'plain'].includes(o.pat) ? o.pat : 'h3', c: cs, e: o.emb && o.emb !== 'none' ? o.emb : undefined, ec: '#f4f4f0' }; m.color = hexToRgb(cs[0]); m.cflag = true; FLAGURL.clear(); }
     dirty(); return ok(`${m.name}, led by ${m.ldr}: ${IDEO[m.ideo].toLowerCase()}, fighting for ${MIL_GOALS[m.goal]}.`); }
-  if (a === 'quit') { m.human = false; G.pmil = null; PL = null; G.humans = []; save(); return ok('We hand the movement back to its commanders.'); }
+  if (a === 'quit') { m.human = false; G.pmil = null; PL = null; PLNEW = -1; G.humans = []; UI.tab = 'realm'; UI.sheet = true; UI.lobby = 'sp'; save(); return ok('We hand the movement back to its commanders.'); } // Build 24.4: PLNEW -1 = no player (applyCmd used to restore the group)
   return no('Unknown order.');
 }
 function milPlayHTML() {
@@ -7734,8 +7734,9 @@ function milPlayHTML() {
       <input type="text" id="mil-aims" value="${esc(m.aims)}" maxlength="120" aria-label="Aims">
       <div class="row"><select id="mil-pat" aria-label="Flag pattern">${['h3', 'v3', 'triangle', 'canton', 'plain'].map(p => `<option ${(m.flag && m.flag.p) === p ? 'selected' : ''}>${p}</option>`).join('')}</select><select id="mil-emb" aria-label="Emblem">${['none', 'star', 'crescent', 'circle'].map(p => `<option>${p}</option>`).join('')}</select><input type="color" id="mil-c1" value="${rgbHex(m.color)}"><input type="color" id="mil-c2" value="#f4f4f0"><input type="color" id="mil-c3" value="#141414"></div>
       <button class="btn small" data-mil="custom">Save name, leader, aims and flag</button></div>` : ''}
-    <div class="sect"><div class="eyebrow">News</div>${logs.map(l => `<p class="small">${esc(dateStr(l.t))}: ${esc(l.text)}</p>`).join('') || '<p class="small muted">Nothing yet.</p>'}
-      <button class="btn small" data-mil="quit">Stop leading this group</button></div>`;
+    <div class="sect"><div class="eyebrow">News</div>${logs.map(l => `<p class="small">${esc(dateStr(l.t))}: ${esc(l.text)}</p>`).join('') || '<p class="small muted">Nothing yet.</p>'}</div>
+    <div class="sect"><div class="eyebrow">Game</div><div class="row"><button class="btn small" data-mil="quit">Stop leading this group</button><button class="btn small ${UI.confirmNew ? 'danger' : ''}" data-do="newgame">${UI.confirmNew ? 'Click again to restart from November 2026' : 'Start over'}</button></div>
+      <p class="muted small">Stop leading: the world carries on and you pick another country or group. Start over: a new world from November 2026.</p></div>`;
 }
 // the choice screen: armed groups to lead
 function milChooseHTML() {
@@ -10139,7 +10140,7 @@ function applyCmd(nation, cmd, remote) {
       case 'diff': if (!MP.on) { G.diff = clamp(cmd.d, 0, 3); log(`Difficulty set to ${DF().name}.`, 'event', [nation]); r = { ok: true, msg: `Difficulty: ${DF().name}.` }; } break;
     }
   } catch (e) { console.warn(e); r = { ok: false, msg: 'That could not be done.' }; }
-  finally { PL = PLNEW ?? prev; PLNEW = null; APPLYING = false; for (const m of milActive()) if (m._s0 != null) gnPush(m); }
+  finally { PL = PLNEW === -1 ? null : PLNEW ?? prev; PLNEW = null; APPLYING = false; for (const m of milActive()) if (m._s0 != null) gnPush(m); }
   dirty();
   return r;
 }
@@ -11617,7 +11618,7 @@ document.body.addEventListener('click', async e => {
   if (el.dataset.plan) { const k = el.dataset.plan; if (k === 'clear' || k === 'front' || k === 'off') { UI.planPick = null; sendCmd({ kind: 'plan', unit: UI.selUnit, plan: k === 'clear' ? null : { k, t: +el.dataset.pt } }).then(r => { if (r && r.msg) toast(r.msg); renderAll(); }); } else { UI.planPick = UI.planPick === k ? null : k; renderAll(); } return; }
   if (el.dataset.dv) { sendCmd({ kind: 'dv', unit: UI.selUnit, t: +el.dataset.dv, to: el.dataset.to ? +el.dataset.to : null }).then(r => { if (r && r.msg) toast(r.msg); renderAll(); }); return; }
   if (el.dataset.bc) { sendCmd({ kind: 'bchoice', p: +el.dataset.b, f: el.dataset.bc, v: el.dataset.v }).then(r => { if (r && r.msg) toast(r.msg); renderAll(); }); return; }
-  if (el.dataset.mil) { const a = el.dataset.mil, o = el.dataset.mo ? JSON.parse(el.dataset.mo) : {}; if (a === 'custom') { const v = id => (document.getElementById(id) || {}).value; Object.assign(o, { name: v('mil-name'), ldr: v('mil-ldr'), ideo: v('mil-ideo'), goal: v('mil-goal'), aims: v('mil-aims'), pat: v('mil-pat'), emb: v('mil-emb'), c: [v('mil-c1'), v('mil-c2'), v('mil-c3')] }); } sendCmd({ kind: 'mil', a, o }).then(r => { if (r && r.msg) toast(r.msg); if (a === 'quit') { UI.lobby = 'mil'; } renderAll(); }); return; }
+  if (el.dataset.mil) { const a = el.dataset.mil, o = el.dataset.mo ? JSON.parse(el.dataset.mo) : {}; if (a === 'custom') { const v = id => (document.getElementById(id) || {}).value; Object.assign(o, { name: v('mil-name'), ldr: v('mil-ldr'), ideo: v('mil-ideo'), goal: v('mil-goal'), aims: v('mil-aims'), pat: v('mil-pat'), emb: v('mil-emb'), c: [v('mil-c1'), v('mil-c2'), v('mil-c3')] }); } sendCmd({ kind: 'mil', a, o }).then(r => { if (r && r.msg) toast(r.msg); if (a === 'quit') { UI.lobby = 'sp'; UI.selNation = -1; } renderAll(); }); return; }
   if (el.dataset.coin) { sendCmd({ kind: 'coin', unit: +el.dataset.cu, a: el.dataset.coin }).then(r => { if (r && r.msg) toast(r.msg); renderAll(); }); return; }
   if (el.dataset.fm) { sendCmd({ kind: 'fmis', unit: UI.selUnit, m: el.dataset.fm }).then(r => { if (r && r.msg) toast(r.msg); renderAll(); }); return; }
   if (el.dataset.mis) { UI.airPick = el.dataset.mis === 'none' ? null : el.dataset.mis; if (el.dataset.mis === 'none') { const su = G.units.find(x => x.id === UI.selUnit); if (su) sendCmd({ kind: 'mission', unit: su.id, m: 'none' }); } else toast(el.dataset.mis === 'rebase' ? 'Click one of our provinces to move the airfield there.' : `Click a target for ${MIS[el.dataset.mis].l.toLowerCase()}.`); renderAll(); return; }

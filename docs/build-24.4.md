@@ -1,0 +1,7 @@
+# Build 24.4 "Bolivar" (2026-11-01): Diplomacy tab and leaving a group
+
+**Diplomacy stopped working after a while.** Clicking an armed group's army or territory selects its group nation (`G.gn`). Diplomacy and Profile expected a full country and threw; once the group was destroyed its nation became `null`, and Diplomacy, Intelligence and Profile threw on every open. The selection persisted, so the tabs stayed blank. Now: `selFix()` clears a selection that no longer exists before any panel renders; `renderDiplo`, `renderIntel` and `renderProf` treat a group nation as no selection (Diplomacy shows a note pointing to Intelligence); `tabSafe(k)` renders a tab, and if it throws, clears the selection and search and retries, then shows an error note instead of a dead window.
+
+**Leaving an armed group.** "Stop leading this group" released the group but `applyCmd` restored `PL` to the group's nation, so the game treated the player as a country that does not exist. `milPlay0('quit')` now sets `PLNEW = -1`, which `applyCmd` reads as "no player"; the click handler opens the country list (`UI.lobby = 'sp'`). The Movement tab has a Game section with "Stop leading this group" and "Start over" (new world from November 2026).
+
+**Tested:** a live and a removed group selected: Diplomacy, Intelligence, Profile and Trade render. Leading the Houthis, then Stop leading: the country list opens; picking Saudi Arabia plays two months with Overview, Diplomacy, Military and Economy working. Start over from group mode: a new world at November 2026 on the choice screen.
