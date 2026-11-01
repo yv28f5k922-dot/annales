@@ -148,7 +148,9 @@ AI countries keep the default import limit (1) and export policy (`'free'`).
 
 **Done when:** a farm adds about 1 food a month; a fab needs microchip research to build and makes nothing without rare earths; the Economy tab shows the table, charts and selects; changing the import limit to 0% stops our purchases the next month; the AI builds farms when hungry; a Build 23 save loads and plays 12 months.
 
-**Status of parts 2–4 (2026-11-01):** written by Gemini 3.8, applied by Claude with these changes: the commodity market is `G.rmk` (`G.mkt` is the game's stock market); `upgrade()` re-runs `rsInit()` only when `G.rsK` or `G.rmk` is missing (new breakaway states lack `rsBase` and must not reset everyone's stocks); blockaded buyers pay only for what arrives; the Resources table puts its controls on a second line; demand and production both scale with `G.rsIdx` (the square root of world GDP growth, set each month in `rsMonth`), so prices stay near fair unless supply is disrupted. `RSPAY` is still being tuned (1 or 0.6).
+**Status of parts 2–4 (2026-11-01):** written by Gemini 3.8, applied by Claude with these changes: the commodity market is `G.rmk` (`G.mkt` is the game's stock market); `upgrade()` re-runs `rsInit()` only when `G.rsK` or `G.rmk` is missing (new breakaway states lack `rsBase` and must not reset everyone's stocks); blockaded buyers pay only for what arrives; the Resources table puts its controls on a second line; demand and production both scale with `G.rsIdx` (the square root of world GDP growth, set each month in `rsMonth`), so prices stay near fair unless supply is disrupted. `RSPAY` is set to 0.6.
+
+**Balance (10 years, Normal):** seed 12345 GDP ×1.83, median treasury 3.1 months; seed 777 ×1.82, 3.3 (Build 23: ×1.87, 4.1 and ×1.81, 3.7). With `RSPAY` 1 treasuries fell to 2.8–3.0. A 30-year run keeps every price within 0.43–1.34× fair and never at a band edge. Still to watch: after 10 years about 100–120 countries have under 90% coverage of oil, gas, rare earths and chips (they import less than they'd like); semiconductors drift to about 0.6× fair, uranium to about 1.3–1.8×.
 
 ## Part 5: AI equipment purchases (log fix)
 
