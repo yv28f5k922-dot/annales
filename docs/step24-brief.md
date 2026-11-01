@@ -64,6 +64,10 @@ Here GDP is `gdpOf(n.id)`; compute each nation's GDP once per month, not inside 
 
 **Done when** (Claude tests): the page loads with no errors; after a new game every living nation has all 8 stocks; after 12 months stocks are finite and non-negative; world production ≈ world demand in month 1; Ukraine, the US and Brazil are among the top grain producers, Kazakhstan the top uranium producer; an old save loads and gets `G.rsK` and stocks; the 10-year benchmark is unchanged (nothing reads the stocks yet).
 
+**Status: done (2026-11-01).** Written by Gemini 3.8, applied and tested by Claude. Results on seed 12345: every living nation and armed-group nation has all 8 stocks; no invalid values after 12 months; month-1 world production ≈ demand (oil 35/36.6, grain 90/90.1); top uranium KAZ 3, AUS/CAN 2; a 24-month run on seed 777 is identical to Build 23 (nothing reads the stocks yet); a Build 23 save loads and gets stocks.
+
+**Known gap, fix in part 2:** no country starts with steel mills, electronics or chemical plants (`G.bld` is empty at a new game), so steel, aluminium and chips produce 0 everywhere and `G.rsK` is 0 for them, which would leave their demand at 0 forever. Part 2 must seed starting capacity for these three (before part 4's real buildings) and compute `G.rsK` from it. Also expected for now: without trade (part 3), producers pile up stock while most importers run dry within a year (after 12 months about 185 of 203 countries are short of oil, gas, rare earths and food).
+
 ## Part 2: the world market and prices
 
 `G.mkt[r]` = {price, sup, dem, hist (last 24 prices)}. Price in real dollars indexed to world GDP (`price = base × index × (dem ÷ sup)^e`), elasticity per resource (grain and oil steep, steel and aluminium gentle), stability rules from the spec (band 0.4×–3× base, at most 8% a month, 3% drift back to fair). Old `G.price` keeps working as a 1.0-centred index derived from the new prices. Details to be written before this part starts.

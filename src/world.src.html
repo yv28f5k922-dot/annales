@@ -654,7 +654,7 @@ function newGame(seed, diff = 1) {
   // EU single market as trade pacts with largest partners
   log(`${dateStr(0)}. ${G.nations.length} nations, one world. The annals begin.`, 'event');
   UI.selProv = -1; UI.selNation = -1; UI.selUnit = -1; UI.tab = 'realm'; UI.report = null;
-  dirty(); for (const n of G.nations) if (n.alive) { ecoInit(n); techSeed(n); } rebuildForces(); initRail(); REVC.clear(); G.rd = {}; syrIran(A); G.rej = {}; initEmb(); initBases(); pzInit(); G.pzV = 17;
+  dirty(); for (const n of G.nations) if (n.alive) { ecoInit(n); techSeed(n); } rebuildForces(); initRail(); REVC.clear(); G.rd = {}; syrIran(A); G.rej = {}; initEmb(); initBases(); pzInit(); G.pzV = 17; rsInit();
 }
 function newUnit(n, t, str, at, dv) { UNITC = null; const u = { id: G.nextUnit++, n, t, str, at, path: [], trail: null }; if (t === 'a' && typeof bldN === 'function' && bldN(n, 'academy') > 0) u.exp = .45; if (t === 'a') { u.dv = dv || null; fixDv(u); u.s0 = u.str; u.full = str; } G.units.push(u); return u; }
 function placeArmies(n, troops) {
@@ -1434,7 +1434,7 @@ function simulateMonth0() {
   UNITC = null; { const left = daysIn(G.month) - (G.wdm === G.month ? G.wd : 0); for (let d = 0; d < left; d++) warDay(true); } fight(); UNITC = null; occupy(); UNITC = null; SUPC = {}; attrition(); resistanceMonth(); surrenderMonth(); aiPeace(); // step 9: warDay runs the days the clock did not
   logiMonth(); // step 10: depot repairs, aircraft and ship replacements, pilots, fuel, commanders
   forcesMonth(); exhaustMonth(); dzMonth(); cvyMonth(); s18Month(); // step 8: casualties, wounded, conscription, reinforcement from pool and stockpile, production
-  populationMonth(); for (const p in G.battleAt) displace(+p, .03); G.battleAt = {}; resourcesMonth();
+  populationMonth(); for (const p in G.battleAt) displace(+p, .03); G.battleAt = {}; resourcesMonth(); rsMonth();
   relMonth(); // step 6: structural dimensions + fading political part (replaces the flat drift)
   const RB = 14;
   for (const n of G.nations) if (n.alive && !n.horde && n.stab < RB && ownedP(n.id).length >= 4 && !brkBusy(n.id) && !(n.grace > G.month) && R() < (RB - n.stab) / 140) spawnRebels(n);
@@ -2191,6 +2191,7 @@ function upgrade() {
   // countries added to the map after this save was made (e.g. Palestine) start as not independent
   while (G.nations.length < COUNTRY.length) { const c = COUNTRY[G.nations.length]; const id = makeNation({ name: c.name, a3: c.a3, provs: [] }); const n = N_(id); n.alive = false; n.custom = false; delete n.flag; n.capital = c.cap; n.minor = true; }
   if (G.mapMigrated) { const split = new Set(GD.split.rep || []); for (const n of G.nations) if (n.alive && COUNTRY[n.id] && split.has(n.capital) && G.owner[COUNTRY[n.id].cap] === n.id) n.capital = COUNTRY[n.id].cap; delete G.mapMigrated; OWNC = null; }
+  if (!G.rsK) rsInit();
 }
 /* ================= map migration ================= */
 // Saves made before the Middle East province split (GD.split.oldnp provinces) are extended:
@@ -2490,6 +2491,103 @@ function producing(i) { return !(G.battleAt && G.battleAt[i]) && !(G.siege && G.
 function resourcesMonth() {
   G.price = G.price || { oil: 1, gas: 1, rare: 1, grain: 1 };
   for (const r in RESDEF) { let s = 0; for (let i = 0; i < NP; i++) if (RES[i].includes(r) && producing(i)) s++; const target = clamp(Math.pow(RES_SUPPLY0[r] / Math.max(1, s), 1.6), .6, 3); G.price[r] = G.price[r] * .7 + target * .3; }
+}
+
+/* ================= step 24: resources and markets ================= */
+const RS8 = { oil: 'Oil', gas: 'Natural gas', uran: 'Uranium', steel: 'Steel', alu: 'Aluminium', rare: 'Rare earths', chips: 'Semiconductors', grain: 'Food' };
+const DEP2 = {
+  uran: { KAZ: 3, CAN: 2, AUS: 2, NAM: 1, NER: 1, UZB: 1, RUS: 1 },
+  iron: { CHN: 3, AUS: 3, BRA: 2, IND: 2, RUS: 2, UKR: 1, USA: 1, CAN: 1, ZAF: 1, SWE: 1 },
+  baux: { AUS: 3, GIN: 3, CHN: 2, BRA: 1, IND: 1, IDN: 1, JAM: 1 },
+};
+const DEP2P = {};
+for (const r in DEP2) {
+  DEP2P[r] = [];
+  for (const a3 in DEP2[r]) {
+    const c = COUNTRY.findIndex(x => x.a3 === a3);
+    if (c < 0) continue;
+    const ids = PROV.filter(p => p.c === c).map(p => p.i).sort((x, y) => hashStr(PROV[x].name + r) - hashStr(PROV[y].name + r));
+    DEP2P[r].push(...ids.slice(0, DEP2[r][a3]));
+  }
+}
+function rsProd(n) {
+  const p = { oil: 0, gas: 0, uran: 0, steel: 0, alu: 0, rare: 0, chips: 0, grain: 0 };
+  const id = n.id;
+  for (const i of RESP.oil) if (G.ctrl[i] === id && producing(i)) p.oil += bldResMul(i, 'oil');
+  for (const i of RESP.gas) if (G.ctrl[i] === id && producing(i)) p.gas += bldResMul(i, 'gas');
+  for (const i of RESP.rare) if (G.ctrl[i] === id && producing(i)) p.rare += bldResMul(i, 'rare');
+  for (const i of RESP.grain) if (G.ctrl[i] === id && producing(i)) p.grain += 3;
+  for (const i of (DEP2P.uran || [])) if (G.ctrl[i] === id && producing(i)) p.uran += 1;
+  const hasIron = (DEP2P.iron || []).some(i => G.ctrl[i] === id && producing(i));
+  p.steel = bldN(id, 'steel') * (hasIron ? 2 : 1);
+  const hasBaux = (DEP2P.baux || []).some(i => G.ctrl[i] === id && producing(i));
+  p.alu = bldN(id, 'chem') * (hasBaux ? 1.5 : 0.5);
+  p.chips = bldN(id, 'elec') * (0.5 + 0.1 * tl(n, 'chip'));
+  return p;
+}
+function rsWeight(n, gdp = gdpOf(n.id)) {
+  const g = Math.max(0, gdp);
+  const u = unitSums()[n.id] || { a: 0, w: 0, f: 0 };
+  const tech = n.tech ?? 1;
+  return {
+    oil: 0.6 * g + 0.002 * ((u.a || 0) + 5 * (u.w || 0) + 50 * (u.f || 0)),
+    gas: 0.5 * g,
+    uran: g * tl(n, 'nuc') * 0.25,
+    steel: 0.5 * g,
+    alu: 0.3 * g,
+    rare: 0.3 * g * tech,
+    chips: 0.4 * g * tech,
+    grain: n.pop || 0,
+  };
+}
+function rsDem(n, gdp = gdpOf(n.id)) {
+  const w = rsWeight(n, gdp);
+  const d = {};
+  for (const r in RS8) d[r] = w[r] * ((G.rsK && G.rsK[r]) ?? 1);
+  return d;
+}
+function rsInit() {
+  G.rsK = {};
+  const nations = (G.nations || []).concat(G.gn || []).filter(n => n && n.alive);
+  const wProd = {}, wWeight = {};
+  for (const r in RS8) { wProd[r] = 0; wWeight[r] = 0; }
+  for (const n of nations) {
+    const gdp = gdpOf(n.id);
+    const p = rsProd(n);
+    const w = rsWeight(n, gdp);
+    for (const r in RS8) {
+      wProd[r] += p[r] || 0;
+      wWeight[r] += w[r] || 0;
+    }
+  }
+  for (const r in RS8) G.rsK[r] = wWeight[r] > 0 ? wProd[r] / wWeight[r] : 1;
+  for (const n of nations) {
+    const dem = rsDem(n);
+    n.rs = {};
+    for (const r in RS8) n.rs[r] = 3 * dem[r];
+  }
+}
+function rsMonth() {
+  if (!G.rsK) rsInit();
+  const nations = (G.nations || []).concat(G.gn || []).filter(n => n && n.alive);
+  for (const n of nations) {
+    const gdp = gdpOf(n.id);
+    const prod = rsProd(n);
+    const dem = rsDem(n, gdp);
+    if (!n.rs) {
+      n.rs = {};
+      for (const r in RS8) n.rs[r] = 3 * dem[r];
+    }
+    n.rsP = {}; n.rsD = {}; n.rsS = {};
+    for (const r in RS8) {
+      const p = prod[r] || 0, d = dem[r] || 0;
+      const cur = n.rs[r] ?? (3 * d);
+      n.rsP[r] = p;
+      n.rsD[r] = d;
+      n.rsS[r] = Math.max(0, d - (cur + p));
+      n.rs[r] = Math.max(0, cur + p - d);
+    }
+  }
 }
 const resIncome = id => { let s = 0; for (const i of RESIDX) if (G.owner[i] === id && producing(i)) for (const r of RES[i]) s += RESDEF[r].v * (G.price ? G.price[r] : 1) * .8 * (r === 'grain' ? 1 : bldResMul(i, r)); return s; };
 let PARTNERS = {};
