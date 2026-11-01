@@ -2,7 +2,7 @@
 
 A real-time grand strategy game of the modern world (2026 start), modelled on the Hearts of Iron IV mod Millennium Dawn. It runs as one self-contained HTML page.
 
-**Current build:** Build 24.3 "Kutuzov" (2026-11-01): step 24 (resources and markets, real deposit locations); no UN sessions; human players command their forces manually only.
+**Current build:** Build 24.4 "Bolivar" (2026-11-01): step 24 (resources and markets, real deposit locations); no UN sessions; manual-only command for human players; Diplomacy tab and leaving an armed group fixed.
 **Live game:** https://claude.ai/artifact/FSn6D2BJ3UP4Yzg9N8AxMi
 
 ## Layout
