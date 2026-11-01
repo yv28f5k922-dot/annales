@@ -148,6 +148,8 @@ AI countries keep the default import limit (1) and export policy (`'free'`).
 
 **Done when:** a farm adds about 1 food a month; a fab needs microchip research to build and makes nothing without rare earths; the Economy tab shows the table, charts and selects; changing the import limit to 0% stops our purchases the next month; the AI builds farms when hungry; a Build 23 save loads and plays 12 months.
 
+**Status of parts 2–4 (2026-11-01):** written by Gemini 3.8, applied by Claude with these changes: the commodity market is `G.rmk` (`G.mkt` is the game's stock market); `upgrade()` re-runs `rsInit()` only when `G.rsK` or `G.rmk` is missing (new breakaway states lack `rsBase` and must not reset everyone's stocks); blockaded buyers pay only for what arrives; the Resources table puts its controls on a second line; demand and production both scale with `G.rsIdx` (the square root of world GDP growth, set each month in `rsMonth`), so prices stay near fair unless supply is disrupted. `RSPAY` is still being tuned (1 or 0.6).
+
 ## Part 5: AI equipment purchases (log fix)
 
 Goal: AI countries at war or under threat that are short of equipment buy it on step 16's equipment market from friendly suppliers, judged like player sales.

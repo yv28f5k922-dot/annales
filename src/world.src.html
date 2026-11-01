@@ -866,7 +866,7 @@ function occupy() {
 function econ(n) {
   if (n.budget && n.budget.hlt == null) n.budget = normBudget(n.budget);
   const b = n.budget || (n.budget = defaultBudget(n));
-  if (!n.eco) ecoInit(n); const rev = revenue(n), up = upkeep(n), spend = budgetCost(n) + rev * minCost(n), res = resIncome(n.id) * taxesOf(n).res / 20;
+  if (!n.eco) ecoInit(n); const rev = revenue(n), up = upkeep(n), spend = budgetCost(n) + rev * minCost(n), res = (n.rsSold || 0) * taxesOf(n).res / 20;
   const intr = interest(n); n.income = rev + res - up - spend - intr; n.gold += n.income; n.lastRes = res;
   n.train = clamp((n.train ?? .5) + (b.mil - 25) * .00006, .2, .98);
   n.stab = clamp(n.stab + (b.wel + b.hlt - 30) * .03 + (b.svc - 5) * .01, 0, 100);
@@ -874,12 +874,15 @@ function econ(n) {
   if (n.infraPts >= 6 && n.pcap > 5 && (n.railPts = (n.railPts || 0) + 1) % 2 === 0 && G.rail) { n.infraPts -= 6; railGrow(n, null); }
   if (bldN(n.id, 'govb')) n.stab = clamp(n.stab + .1 * Math.min(3, bldN(n.id, 'govb')), 0, 100);
   if (n.infraPts >= 6) { n.infraPts -= 6; const own = ownedP(n.id); if (own.length) { const i = own.reduce((x, y) => (G.dev[y] + R() * 3) > (G.dev[x] + R() * 3) ? y : x); buildLink(i, !isHuman(n.id)); } }
-  const grain = access(n.id, 'grain'); if (!grain && n.pop > 30) n.stab -= .15 * Math.max(.2, 1 - .2 * tl(n, 'agri'));
+  const c_grain = n.rsCov ? (n.rsCov.grain ?? 1) : 1;
+  if (n.pop > 30) n.stab -= 0.3 * (1 - c_grain) * Math.max(.2, 1 - .2 * tl(n, 'agri'));
   debtMonth(n);
   if (n.gold < 0) { n.stab -= 3; for (const u of G.units) if (u.n === n.id) u.str *= .97; }
   const nw = warsOf(n.id).length;
   n.stab = clamp(n.stab + ((n.fac ? 25 + .6 * weighted(n) : 55) - n.stab) * .03 - (taxIdx(n) - 1) * 6.6 - Math.min(3, nw * 1) + (G.blockade[n.id] ? -1 : 0), 0, 100);
-  const gmul = 1 + (.0003 + (n.stab - 50) * .00003 + (b.inf - 11) * .00002) * (nw ? .3 : 1) * (!access(n.id, 'gas') && n.pcap > 15 ? Math.max(hasProg(n, 'green') ? .92 : .8, Math.min(.95, .8 + .03 * (tl(n, 'nuc') + tl(n, 'ren')))) : 1);
+  const c_gas = n.rsCov ? (n.rsCov.gas ?? 1) : 1;
+  const gasX = Math.max(hasProg(n, 'green') ? .92 : .8, Math.min(.95, .8 + .03 * (tl(n, 'nuc') + tl(n, 'ren'))));
+  const gmul = 1 + (.0003 + (n.stab - 50) * .00003 + (b.inf - 11) * .00002) * (nw ? .3 : 1) * (n.pcap > 15 ? 1 - (1 - gasX) * (1 - c_gas) : 1);
   const gm2 = gmul + ecoG(n); for (const i of (ownIdx()[n.id] || [])) G.pv[i] *= gm2;
   macroMonth(n, gm2);
 }
@@ -1234,11 +1237,12 @@ const BLD = {
   arms: { l: 'Military factory', s: 'A', c: '#b0473b', cost: 1.1, time: 6, d: 'Builds $1.2B of army equipment a month when staffed and funded; air wings cost 15% less' },
   ship: { l: 'Shipyard', s: 'Sy', c: '#2f6fa6', cost: 1.0, time: 6, d: 'Fleets cost 20% less and come out 25% larger', req: i => PROV[i].port >= 0, why: 'Needs a port' },
   refinery: { l: 'Oil refinery', s: 'R', c: '#3b3b3b', cost: .8, time: 5, d: '+20% oil income from this province', req: i => RES[i].includes('oil'), why: 'Needs oil' },
-  steel: { l: 'Steel mill', s: 'Fe', c: '#7d8590', cost: .9, time: 5, d: 'Other buildings in the country cost 10% less' },
-  elec: { l: 'Electronics plant', s: 'E', c: '#5a5fc8', cost: 1.1, time: 6, d: 'Research 10% faster' },
+  steel: { l: 'Steel mill', s: 'Fe', c: '#7d8590', cost: .9, time: 5, d: 'Makes steel (more with iron ore); other buildings in the country cost 10% less' },
+  elec: { l: 'Semiconductor fab', s: 'E', c: '#5a5fc8', cost: 1.1, time: 6, d: 'Makes semiconductors (needs microchip research and rare earths)', req: i => tl(N_(G.owner[i]), 'chip') >= 1, why: 'Needs microchip research' },
   food: { l: 'Food processing plant', s: 'F', c: '#8a9a3c', cost: .5, time: 3, d: '+5% population growth and calmer streets here' },
+  farm: { l: 'Farm', s: 'Fm', c: '#6b9a3c', cost: .4, time: 3, d: '+1 food a month (needs gas for fertiliser)' },
   textile: { l: 'Textile factory', s: 'T', c: '#b07a3c', cost: .25, time: 2, d: '+3% output here and lower unrest' },
-  chem: { l: 'Chemical plant', s: 'C', c: '#3c9a86', cost: .8, time: 5, d: '+10% missiles and drones produced' },
+  chem: { l: 'Aluminium smelter', s: 'C', c: '#3c9a86', cost: .8, time: 5, d: 'Makes aluminium (more with bauxite); +10% missiles and drones produced' },
   power: { l: 'Power plant', s: 'P', c: '#c9a227', cost: .6, time: 4, d: '+10% from the other buildings in this province' },
   desal: { l: 'Desalination plant', s: 'D', c: '#3aa0c8', cost: .6, time: 4, d: 'No drought losses here; faster population growth', req: i => MENA.has(COUNTRY[PROV[i].c] ? COUNTRY[PROV[i].c].a3 : '') || PROV[i].ter === 'desert', why: 'Middle East or dry regions only' },
   mine: { l: 'Mine', s: 'Mi', c: '#8a5a3c', cost: .7, time: 5, d: '+25% income from the rare earths and gas here', req: i => RES[i].includes('rare') || RES[i].includes('gas'), why: 'Needs rare earths or gas' },
@@ -1253,7 +1257,7 @@ const BLD = {
   naval: { l: 'Naval base', s: 'N', c: '#24507a', cost: 1.0, time: 6, d: 'Fleet upkeep 8% lower (up to two)', req: i => PROV[i].port >= 0, why: 'Needs a coast' },
 };
 // Jobs (thousands of workers) and output (share of the province's economy) for each building; a building only produces with workers.
-const BJOB = { arms: [25, .02], ship: [30, .02], refinery: [8, .01], steel: [20, .03], elec: [15, .03], food: [10, .02], textile: [20, .03], chem: [10, .02], power: [3, .01], desal: [2, .005], mine: [12, .01], academy: [2, 0], civ: [30, .04], comm: [15, .04], lab: [4, .01], govb: [6, .005], hub: [3, 0], radar: [1, 0], port: [12, .02], naval: [8, .005] };
+const BJOB = { arms: [25, .02], ship: [30, .02], refinery: [8, .01], steel: [20, .03], elec: [15, .03], food: [10, .02], farm: [6, .01], textile: [20, .03], chem: [10, .02], power: [3, .01], desal: [2, .005], mine: [12, .01], academy: [2, 0], civ: [30, .04], comm: [15, .04], lab: [4, .01], govb: [6, .005], hub: [3, 0], radar: [1, 0], port: [12, .02], naval: [8, .005] };
 const labourOf = i => (G.pop ? G.pop[i] : 1) * 1000 * .11 * ((G.nations[G.owner[i]] || {}).wf || 1); // industrial workforce in thousands, less those called up (step 8)
 let BSTAFF = {};
 const bldStaff = i => BSTAFF[i] ?? 1;
@@ -1337,6 +1341,16 @@ function aiBuild(n) {
   const want = [];
   for (const i of own) { if (RES[i].includes('oil') && !bldOf(i).some(b => b.t === 'refinery')) want.push([9, i, 'refinery']); if ((RES[i].includes('rare') || RES[i].includes('gas')) && !bldOf(i).some(b => b.t === 'mine')) want.push([7, i, 'mine']); }
   const best = own.slice().sort((a, b) => G.dev[b] - G.dev[a])[0], port = own.filter(i => PROV[i].port >= 0).sort((a, b) => G.dev[b] - G.dev[a])[0];
+  const c_grain = n.rsCov ? (n.rsCov.grain ?? 1) : 1;
+  const c_steel = n.rsCov ? (n.rsCov.steel ?? 1) : 1;
+  const c_chips = n.rsCov ? (n.rsCov.chips ?? 1) : 1;
+  const c_alu   = n.rsCov ? (n.rsCov.alu ?? 1) : 1;
+  if (best != null) {
+    if (c_grain < 0.9) want.push([6, best, 'farm']);
+    if (c_steel < 0.8 || (G.rmk?.steel?.hi || 0) >= 6) want.push([5, best, 'steel']);
+    if ((c_chips < 0.8 || (G.rmk?.chips?.hi || 0) >= 6) && tl(n, 'chip') >= 1) want.push([5, best, 'elec']);
+    if (c_alu < 0.8 || (G.rmk?.alu?.hi || 0) >= 6) want.push([4, best, 'chem']);
+  }
   if (shipsOf(n.id) >= 8 && port != null && !has('ship')) want.push([8, port, 'ship']);
   if ((warsOf(n.id).length || n.posture === 'war' || n.posture === 'defend' || (n.budget && n.budget.mil >= 30)) && !has('arms')) want.push([8, best, 'arms']);
   if (warsOf(n.id).length && !has('academy') && n.pcap > 8) want.push([5, best, 'academy']);
@@ -1678,6 +1692,20 @@ function act(kind, arg, o = {}) {
   const done = (msg, ok = true) => { if (ok && !free && MP.on) G.ap[PL] = apOf(PL) - 1; if (!o.quiet && !APPLYING) toast(msg); if (!APPLYING) { save(); renderAll(); } dirty(); return { ok, msg }; };
   const fail = msg => { if (!o.quiet && !APPLYING) toast(msg); return { ok: false, msg }; };
   switch (kind) {
+    case 'rslim': {
+      if (o.k && RS8[o.k]) {
+        n.rsLim = n.rsLim || {};
+        n.rsLim[o.k] = +o.v;
+      }
+      return done('Import limit updated', true);
+    }
+    case 'rsexp': {
+      if (o.k && RS8[o.k]) {
+        n.rsExp = n.rsExp || {};
+        n.rsExp[o.k] = o.v;
+      }
+      return done('Export policy updated', true);
+    }
     case 'develop': { const i = arg ?? myProv(); if (G.owner[i] !== me) return fail('That province is not ours.'); if (G.dev[i] >= 25) return fail(`${PN(i)} is fully developed.`); if (!spend(n, devCost(i))) return { ok: false }; G.dev[i]++; n.prestige += .5; const lj = buildLink(i); fxProv(i, null, '+1 development'); log(`Infrastructure investment in ${PN(i)}${lj !== null ? `, with new road and rail links to ${PN(lj)}` : ''}.`, 'event', [me]); return done(`${PN(i)} grows to development ${G.dev[i]}${lj !== null ? `; new links to ${PN(lj)}` : ''}.`); }
     case 'fortify': { const i = arg ?? myProv(); if (G.owner[i] !== me) return fail('That province is not ours.'); if (G.fort[i] >= 4) return fail(`${PN(i)} is fully fortified.`); if (!spend(n, fortCost(i))) return { ok: false }; G.fort[i]++; fxProv(i, null, 'Defences ▲'); log(`New fortifications in ${PN(i)}.`, 'event', [me]); return done(`${PN(i)} defences raised to level ${G.fort[i]}.`); }
     case 'recruit': case 'raise': { const i = arg ?? myProv(); if (G.owner[i] !== me || G.ctrl[i] !== me) return fail('Raise divisions in a province we hold.'); forcesOf(n); const t = kind === 'raise' ? tplOf(n, +o.t) : defTpl(n), m = tplMan(n, t.id), c = kind === 'raise' ? clamp(+o.c || 1, 1, 10) : clamp(Math.round((o.troops || recruitAmt(n)) / m), 1, 10); const chk = raiseDiv(n, i, t.id, c, true); if (!chk.made) return fail(chk.why); if (!spend(n, chk.man * n.pcap * .008 * (G.eraCost || 1))) return { ok: false }; const r = raiseDiv(n, i, t.id, chk.made); fxProv(i, null, `+${r.made} div.`); return done(`${r.made} × ${t.nm} raised in ${PN(i)} (${fmtK(r.man)} troops).${r.made < c ? ' ' + r.why : ''}`); }
@@ -2191,7 +2219,19 @@ function upgrade() {
   // countries added to the map after this save was made (e.g. Palestine) start as not independent
   while (G.nations.length < COUNTRY.length) { const c = COUNTRY[G.nations.length]; const id = makeNation({ name: c.name, a3: c.a3, provs: [] }); const n = N_(id); n.alive = false; n.custom = false; delete n.flag; n.capital = c.cap; n.minor = true; }
   if (G.mapMigrated) { const split = new Set(GD.split.rep || []); for (const n of G.nations) if (n.alive && COUNTRY[n.id] && split.has(n.capital) && G.owner[COUNTRY[n.id].cap] === n.id) n.capital = COUNTRY[n.id].cap; delete G.mapMigrated; OWNC = null; }
-  if (!G.rsK) rsInit();
+  if (!G.rsK || !G.rmk) rsInit();
+  if (!G.rmk) {
+    G.rmk = {};
+    for (const r in RS8) {
+      const b = RSMKT_BASE[r];
+      G.rmk[r] = { p: b, base: b, sup: 0, dem: 0, pm: 1, hi: 0, lo: 0, hist: [b] };
+    }
+  }
+  for (const n of (G.nations || []).concat(G.gn || []).filter(n => n && n.alive)) {
+    if (!n.rsLim) n.rsLim = { oil: 1, gas: 1, uran: 1, steel: 1, alu: 1, rare: 1, chips: 1, grain: 1 };
+    if (!n.rsExp) n.rsExp = { oil: 'free', gas: 'free', uran: 'free', steel: 'free', alu: 'free', rare: 'free', chips: 'free', grain: 'free' };
+    if (n.harv == null) n.harv = 1;
+  }
 }
 /* ================= map migration ================= */
 // Saves made before the Middle East province split (GD.split.oldnp provinces) are extended:
@@ -2510,23 +2550,36 @@ for (const r in DEP2) {
     DEP2P[r].push(...ids.slice(0, DEP2[r][a3]));
   }
 }
+const RSBASE = {
+  steel: { CHN: 54, IND: 7, JPN: 5, USA: 4.5, RUS: 4, KOR: 3.5, DEU: 2, TUR: 2, BRA: 2, IRN: 1.5 },
+  alu:   { CHN: 58, IND: 6, RUS: 5, CAN: 4, ARE: 4, BHR: 2, AUS: 2, NOR: 2, USA: 1, SAU: 1 },
+  chips: { TWN: 45, KOR: 20, USA: 10, CHN: 12, JPN: 8 },
+};
+const RSMKT_BASE = { oil: 7, gas: 4, uran: 0.5, steel: 6, alu: 2, rare: 0.5, chips: 5, grain: 3 };
+const RSMKT_ELAS = { oil: 1.5, gas: 1.2, uran: 0.8, steel: 0.6, alu: 0.6, rare: 1.0, chips: 1.0, grain: 1.6 };
+
 function rsProd(n) {
   const p = { oil: 0, gas: 0, uran: 0, steel: 0, alu: 0, rare: 0, chips: 0, grain: 0 };
   const id = n.id;
   for (const i of RESP.oil) if (G.ctrl[i] === id && producing(i)) p.oil += bldResMul(i, 'oil');
   for (const i of RESP.gas) if (G.ctrl[i] === id && producing(i)) p.gas += bldResMul(i, 'gas');
   for (const i of RESP.rare) if (G.ctrl[i] === id && producing(i)) p.rare += bldResMul(i, 'rare');
+  const c_gas = n.rsCov ? (n.rsCov.gas ?? 1) : 1;
+  const c_rare = n.rsCov ? (n.rsCov.rare ?? 1) : 1;
   for (const i of RESP.grain) if (G.ctrl[i] === id && producing(i)) p.grain += 3;
+  p.grain += bldN(id, 'farm') * (n.harv ?? 1) * (0.5 + 0.5 * c_gas);
   for (const i of (DEP2P.uran || [])) if (G.ctrl[i] === id && producing(i)) p.uran += 1;
   const hasIron = (DEP2P.iron || []).some(i => G.ctrl[i] === id && producing(i));
-  p.steel = bldN(id, 'steel') * (hasIron ? 2 : 1);
+  p.steel = (n.rsBase?.steel || 0) + bldN(id, 'steel') * (hasIron ? 2 : 1);
   const hasBaux = (DEP2P.baux || []).some(i => G.ctrl[i] === id && producing(i));
-  p.alu = bldN(id, 'chem') * (hasBaux ? 1.5 : 0.5);
-  p.chips = bldN(id, 'elec') * (0.5 + 0.1 * tl(n, 'chip'));
+  p.alu = (n.rsBase?.alu || 0) + bldN(id, 'chem') * (hasBaux ? 1.5 : 0.5);
+  p.chips = (n.rsBase?.chips || 0) + bldN(id, 'elec') * (0.5 + 0.1 * tl(n, 'chip')) * c_rare;
+  const gi = G.rsIdx || 1;
+  for (const r in RS8) p[r] *= gi * (G.rmk ? (G.rmk[r]?.pm ?? 1) : 1);
   return p;
 }
 function rsWeight(n, gdp = gdpOf(n.id)) {
-  const g = Math.max(0, gdp);
+  const g = Math.max(0, gdp) / (G.rsIdx || 1);
   const u = unitSums()[n.id] || { a: 0, w: 0, f: 0 };
   const tech = n.tech ?? 1;
   return {
@@ -2549,6 +2602,28 @@ function rsDem(n, gdp = gdpOf(n.id)) {
 function rsInit() {
   G.rsK = {};
   const nations = (G.nations || []).concat(G.gn || []).filter(n => n && n.alive);
+  const TOT = { steel: 40, alu: 15, chips: 10 };
+  const REM = { steel: 14.5, alu: 15, chips: 5 };
+  for (const r of ['steel', 'alu', 'chips']) {
+    let remGdp = 0;
+    for (const n of nations) {
+      n.rsBase = n.rsBase || {};
+      if (RSBASE[r][n.a3] != null) {
+        n.rsBase[r] = RSBASE[r][n.a3] * TOT[r] / 100;
+      } else {
+        remGdp += Math.max(0, gdpOf(n.id));
+      }
+    }
+    const remPool = REM[r] * TOT[r] / 100;
+    if (remGdp > 0) {
+      for (const n of nations) {
+        if (RSBASE[r][n.a3] == null) {
+          n.rsBase[r] = remPool * (Math.max(0, gdpOf(n.id)) / remGdp);
+        }
+      }
+    }
+  }
+
   const wProd = {}, wWeight = {};
   for (const r in RS8) { wProd[r] = 0; wWeight[r] = 0; }
   for (const n of nations) {
@@ -2566,10 +2641,80 @@ function rsInit() {
     n.rs = {};
     for (const r in RS8) n.rs[r] = 3 * dem[r];
   }
+
+  let wGdp = 0;
+  for (const n of nations) wGdp += Math.max(0, gdpOf(n.id));
+  G.wgdp0 = wGdp || 1;
+  G.rmk = {};
+  for (const r in RS8) {
+    const b = RSMKT_BASE[r];
+    G.rmk[r] = { p: b, base: b, sup: wProd[r] || 0, dem: wWeight[r] * G.rsK[r] || 0, pm: 1, hi: 0, lo: 0, hist: [b] };
+  }
+}
+
+function rsMarket() {
+  const nations = (G.nations || []).concat(G.gn || []).filter(n => n && n.alive);
+  let wGdp = 0;
+  for (const n of nations) wGdp += Math.max(0, gdpOf(n.id));
+  if (!G.wgdp0) G.wgdp0 = wGdp || 1;
+  if (!G.rmk) {
+    G.rmk = {};
+    for (const r in RS8) {
+      const b = RSMKT_BASE[r];
+      G.rmk[r] = { p: b, base: b, sup: 0, dem: 0, pm: 1, hi: 0, lo: 0, hist: [b] };
+    }
+  }
+
+  const idx = Math.sqrt(Math.max(0.01, wGdp / G.wgdp0));
+
+  for (const r in RS8) {
+    const m = G.rmk[r];
+    let sup = 0, dem = 0;
+    for (const n of nations) {
+      sup += (n.rsP && n.rsP[r]) || 0;
+      dem += (n.rsD && n.rsD[r]) || 0;
+    }
+    m.sup = sup;
+    m.dem = dem;
+    const fair = m.base * idx;
+    const e = RSMKT_ELAS[r] || 1.0;
+    const s = Math.max(0.01, sup);
+    const d = dem;
+    let target = fair * Math.pow(d / s, e);
+    target = Math.max(0.4 * fair, Math.min(3.0 * fair, target));
+    let nextP = m.p + 0.5 * (target - m.p) + 0.03 * (fair - m.p);
+    nextP = Math.max(m.p * 0.92, Math.min(m.p * 1.08, nextP));
+    m.p = Math.max(0.4 * fair, Math.min(3.0 * fair, nextP));
+
+    if (m.p > 1.3 * fair) { m.hi = (m.hi || 0) + 1; m.lo = 0; }
+    else if (m.p < 0.7 * fair) { m.lo = (m.lo || 0) + 1; m.hi = 0; }
+    else { m.hi = 0; m.lo = 0; }
+
+    if (m.hi >= 6) m.pm = Math.min(1.5, m.pm + 0.02);
+    else if (m.lo >= 6) m.pm = Math.max(0.7, m.pm - 0.02);
+    else {
+      if (m.pm > 1) m.pm = Math.max(1, m.pm - 0.01);
+      else if (m.pm < 1) m.pm = Math.min(1, m.pm + 0.01);
+    }
+
+    if (!m.hist) m.hist = [];
+    m.hist.push(m.p);
+    if (m.hist.length > 24) m.hist.shift();
+  }
+
+  G.price = G.price || {};
+  for (const r of ['oil', 'gas', 'rare', 'grain']) {
+    const fair = G.rmk[r].base * idx;
+    G.price[r] = fair > 0 ? G.rmk[r].p / fair : 1;
+  }
 }
 function rsMonth() {
   if (!G.rsK) rsInit();
   const nations = (G.nations || []).concat(G.gn || []).filter(n => n && n.alive);
+  { let w = 0; for (const x of nations) w += Math.max(0, gdpOf(x.id)); G.rsIdx = G.wgdp0 ? Math.sqrt(Math.max(.01, w / G.wgdp0)) : 1; }
+  if (MOY() === 0) {
+    for (const n of nations) n.harv = 0.85 + 0.3 * R();
+  }
   for (const n of nations) {
     const gdp = gdpOf(n.id);
     const prod = rsProd(n);
@@ -2586,6 +2731,238 @@ function rsMonth() {
       n.rsD[r] = d;
       n.rsS[r] = Math.max(0, d - (cur + p));
       n.rs[r] = Math.max(0, cur + p - d);
+    }
+  }
+  rsTrade();
+  rsMarket();
+}
+
+const RSPAY = 1;
+
+function rsSpark(hist, w = 48, h = 14) {
+  if (!hist || hist.length < 2) return '';
+  const mn = Math.min(...hist), mx = Math.max(...hist), r = mx - mn || 1;
+  const pts = hist.map((v, i) => `${(i / (hist.length - 1) * w).toFixed(1)},${(h - (v - mn) / r * (h - 2) - 1).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="vertical-align:middle;margin-left:4px;" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="var(--brass)" stroke-width="1.2"/></svg>`;
+}
+
+function rsHTML() {
+  const me = PL;
+  if (me == null || !N_(me)) return '';
+  const n = N_(me);
+  const nations = (G.nations || []).concat(G.gn || []).filter(x => x && x.alive);
+  const bldMap = { grain: 'farm', steel: 'steel', chips: 'elec', alu: 'chem' };
+
+  const rows = Object.keys(RS8).map(r => {
+    const m = G.rmk?.[r] || { p: RSMKT_BASE[r] || 5, hist: [] };
+    const stock = (n.rs && n.rs[r]) || 0;
+    const prod = (n.rsP && n.rsP[r]) || 0;
+    const dem = (n.rsD && n.rsD[r]) || 0;
+    const net = prod - dem;
+    const cov = Math.round(((n.rsCov && n.rsCov[r]) ?? 1) * 100);
+    const bought = (n.rsBought && n.rsBought[r]) || 0;
+    const sold = (n.rsSoldQty && n.rsSoldQty[r]) || 0;
+    const lim = n.rsLim?.[r] ?? 1;
+    const exp = n.rsExp?.[r] || 'free';
+    const bldKey = bldMap[r];
+
+    const chart = rsSpark(m.hist || []);
+    const covCol = cov < 80 ? 'var(--war)' : cov < 100 ? 'var(--brass)' : 'var(--peace)';
+    const netStr = (net >= 0 ? '+' : '') + net.toFixed(1);
+    const bsStr = `+${bought.toFixed(1)} / -${sold.toFixed(1)}`;
+
+    return `<tr>
+      <td style="padding:4px 6px 0;font-weight:600;">${esc(RS8[r])}</td>
+      <td style="padding:4px 6px;text-align:right;">${stock.toFixed(1)}</td>
+      <td style="padding:4px 6px;text-align:right;">${prod.toFixed(1)}</td>
+      <td style="padding:4px 6px;text-align:right;">${dem.toFixed(1)}</td>
+      <td style="padding:4px 6px;text-align:right;color:${net >= 0 ? 'var(--peace)' : 'var(--war)'};">${netStr}</td>
+      <td style="padding:4px 6px;text-align:right;color:${covCol};font-weight:600;">${cov}%</td>
+      <td style="padding:4px 6px;text-align:right;">$${m.p.toFixed(1)}${chart}</td>
+    </tr><tr style="border-bottom:1px solid rgba(255,255,255,.07);"><td colspan="7" style="padding:0 6px 6px;font-size:11px;opacity:.9;white-space:normal;line-height:1.9;">Bought / sold ${bsStr} · Imports up to
+        <select data-rslim="${r}" style="width:auto;display:inline-block;min-width:0;height:auto;padding:1px 4px;font-size:11px;">
+          <option value="0"${lim === 0 ? ' selected' : ''}>0%</option>
+          <option value="0.5"${lim === 0.5 ? ' selected' : ''}>50%</option>
+          <option value="1"${lim === 1 ? ' selected' : ''}>100%</option>
+          <option value="2"${lim === 2 ? ' selected' : ''}>200%</option>
+        </select> of demand · Exports
+        <select data-rsexp="${r}" style="width:auto;display:inline-block;min-width:0;height:auto;padding:1px 4px;font-size:11px;">
+          <option value="free"${exp === 'free' ? ' selected' : ''}>Free</option>
+          <option value="restr"${exp === 'restr' ? ' selected' : ''}>Restricted</option>
+          <option value="ban"${exp === 'ban' ? ' selected' : ''}>Banned</option>
+        </select>
+        ${bldKey ? ` · <button class="btn small" data-tab="build" style="padding:1px 5px;font-size:10px;">Build ${esc(BLD[bldKey].l.toLowerCase())}s</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  const topSections = Object.keys(RS8).map(r => {
+    const topProd = nations.slice().sort((a, b) => ((b.rsP && b.rsP[r]) || 0) - ((a.rsP && a.rsP[r]) || 0)).slice(0, 3);
+    const topBuy = nations.slice().sort((a, b) => ((b.rsBought && b.rsBought[r]) || 0) - ((a.rsBought && a.rsBought[r]) || 0)).slice(0, 3);
+    const pList = topProd.map(x => `${esc(x.name)} (${((x.rsP && x.rsP[r]) || 0).toFixed(1)})`).join(', ');
+    const bList = topBuy.filter(x => (x.rsBought && x.rsBought[r]) > 0.01).map(x => `${esc(x.name)} (${((x.rsBought && x.rsBought[r]) || 0).toFixed(1)})`).join(', ') || 'None';
+    return `<div style="font-size:11px;margin-bottom:3px;"><span style="font-weight:600;">${esc(RS8[r])}:</span> Top producers: ${pList} · Top buyers: ${bList}</div>`;
+  }).join('');
+
+  return `<div class="sect">
+    <div class="eyebrow">Resources and markets</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;font-size:11px;border-collapse:collapse;white-space:nowrap;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,.15);font-size:10px;opacity:.8;">
+            <th style="text-align:left;padding:3px 6px;">Resource</th>
+            <th style="text-align:right;padding:3px 6px;">Stock</th>
+            <th style="text-align:right;padding:3px 6px;">Prod</th>
+            <th style="text-align:right;padding:3px 6px;">Dem</th>
+            <th style="text-align:right;padding:3px 6px;">Net</th>
+            <th style="text-align:right;padding:3px 6px;">Coverage</th>
+            <th style="text-align:right;padding:3px 6px;">Price</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);opacity:.85;">
+      <div style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Market leaders</div>
+      ${topSections}
+    </div>
+  </div>`;
+}
+
+function rsTrade() {
+  const nations = (G.nations || []).concat(G.gn || []).filter(n => n && n.alive);
+  for (const n of nations) {
+    n.rsSold = 0;
+    n.rsCostT = 0;
+    n.rsCost = {};
+    n.rsBought = {};
+    n.rsSoldQty = {};
+  }
+
+  const nbs = {};
+  for (const n of nations) {
+    nbs[n.id] = nbNations(n.id);
+  }
+
+  for (const r in RS8) {
+    const price = (G.rmk?.[r]?.p ?? RSMKT_BASE[r]) * RSPAY;
+    const offers = [];
+    let totOffered = 0;
+
+    for (const n of nations) {
+      const expPol = n.rsExp?.[r] || 'free';
+      if (expPol === 'ban') continue;
+      const dem = (n.rsD && n.rsD[r]) || 0;
+      const T = 3 * dem;
+      const cur = n.rs?.[r] || 0;
+      const surplus = cur - T;
+      if (surplus > 0.001) {
+        const amt = 0.5 * surplus;
+        offers.push({ id: n.id, n, amt, expPol });
+        totOffered += amt;
+      }
+    }
+
+    const buyers = [];
+    for (const n of nations) {
+      const dem = (n.rsD && n.rsD[r]) || 0;
+      const T = 3 * dem;
+      const cur = n.rs?.[r] || 0;
+      let want = (n.rsS && n.rsS[r]) || 0;
+      if (cur < T && (n.gold || 0) > revenue(n)) {
+        want += (T - cur) / 6;
+      }
+      const lim = n.rsLim?.[r] ?? 1;
+      want = Math.min(want, lim * dem);
+      if (want > 0.001) {
+        buyers.push({ id: n.id, n, want, initialShort: (n.rsS && n.rsS[r]) || 0, bought: 0 });
+      }
+    }
+
+    buyers.sort((a, b) => b.want - a.want);
+
+    for (const b of buyers) {
+      const allowed = offers.filter(o => {
+        if (o.amt <= 0.001 || o.id === b.id) return false;
+        if (hostile(o.id, b.id)) return false;
+        if (sancLv(o.id, b.id) >= 3 || sancLv(b.id, o.id) >= 3) return false;
+        if (o.expPol === 'ban') return false;
+        if (o.expPol === 'restr') {
+          if (rel(o.id, b.id) <= 0 || sancLv(o.id, b.id) > 0 || sancLv(b.id, o.id) > 0) return false;
+        }
+        return true;
+      });
+
+      const allowedTot = allowed.reduce((sum, o) => sum + o.amt, 0);
+      if (allowedTot > 0.001) {
+        const maxAfford = price > 0 ? (b.n.gold != null ? b.n.gold / price : b.want) : b.want;
+        const buyAmt = Math.min(b.want, maxAfford, allowedTot);
+
+        if (buyAmt > 0.001) {
+          for (const o of allowed) {
+            const isLand = nbs[b.id] && nbs[b.id].has(o.id);
+            const take = buyAmt * (o.amt / allowedTot) * (isLand ? 1 : Math.max(0, 1 - ((G.blk || {})[b.id] || 0)));
+            if (take <= 0.001) continue;
+            const cost = take * price;
+            b.n.gold = Math.max(0, (b.n.gold || 0) - cost);
+            b.n.rsCost[r] = (b.n.rsCost[r] || 0) + cost;
+            b.n.rsCostT = (b.n.rsCostT || 0) + cost;
+            o.n.rsSold = (o.n.rsSold || 0) + cost;
+            o.n.rsSoldQty[r] = (o.n.rsSoldQty[r] || 0) + take;
+            o.n.rs[r] = Math.max(0, (o.n.rs[r] || 0) - take);
+            o.amt -= take;
+
+            const arrive = take;
+            b.n.rs[r] = (b.n.rs[r] || 0) + arrive;
+            b.bought += arrive;
+            b.n.rsBought[r] = (b.n.rsBought[r] || 0) + arrive;
+          }
+        }
+      }
+
+      const worldLeft = offers.reduce((sum, o) => sum + o.amt, 0);
+      if (b.bought <= 0.001 && b.initialShort > 0.001 && worldLeft > 0.001) {
+        const greyMax = 0.5 * b.initialShort;
+        const greyPrice = price * 1.4;
+        const greySellers = offers.filter(o => o.id !== b.id && !hostile(o.id, b.id) && o.amt > 0.001);
+        const greyTot = greySellers.reduce((sum, o) => sum + o.amt, 0);
+
+        if (greyTot > 0.001) {
+          const maxAfford = greyPrice > 0 ? (b.n.gold != null ? b.n.gold / greyPrice : greyMax) : greyMax;
+          const buyAmt = Math.min(greyMax, maxAfford, greyTot);
+
+          if (buyAmt > 0.001) {
+            for (const o of greySellers) {
+              const take = buyAmt * (o.amt / greyTot);
+              if (take <= 0.001) continue;
+              const cost = take * greyPrice;
+              b.n.gold = Math.max(0, (b.n.gold || 0) - cost);
+              b.n.rsCost[r] = (b.n.rsCost[r] || 0) + cost;
+              b.n.rsCostT = (b.n.rsCostT || 0) + cost;
+              o.n.rsSold = (o.n.rsSold || 0) + cost;
+              o.n.rsSoldQty[r] = (o.n.rsSoldQty[r] || 0) + take;
+              o.n.rs[r] = Math.max(0, (o.n.rs[r] || 0) - take);
+              o.amt -= take;
+
+              b.n.rs[r] = (b.n.rs[r] || 0) + take;
+              b.bought += take;
+              b.n.rsBought[r] = (b.n.rsBought[r] || 0) + take;
+            }
+            if (typeof repOf === 'function') repOf(b.id);
+            b.n.rep = Math.max(0, (b.n.rep || 50) - 0.1);
+          }
+        }
+      }
+    }
+  }
+
+  for (const n of nations) {
+    n.rsCov = n.rsCov || {};
+    for (const r in RS8) {
+      const d = (n.rsD && n.rsD[r]) || 0;
+      const arrived = (n.rsBought && n.rsBought[r]) || 0;
+      n.rsS[r] = Math.max(0, (n.rsS[r] || 0) - arrived);
+      n.rsCov[r] = d > 0 ? Math.max(0, Math.min(1, 1 - (n.rsS[r] || 0) / d)) : 1;
     }
   }
 }
@@ -7740,17 +8117,18 @@ function modernise(n, svcC) {
   }
 }
 // ---- resources: real inputs of the lines ----
-const RESK = [['steel', 'Steel'], ['oil', 'Oil'], ['rare', 'Rare earths'], ['chips', 'Microchips'], ['comp', 'Composites']];
+const RESK = [['steel', 'Steel'], ['oil', 'Oil'], ['rare', 'Rare earths'], ['chips', 'Microchips'], ['comp', 'Aluminium']];
 const RINP = { inf: { steel: .6, comp: .2, chips: .2 }, mot: { steel: .6, oil: .3, chips: .1 }, apc: { steel: .6, oil: .2, chips: .2 }, tnk: { steel: .6, oil: .1, chips: .2, comp: .1 }, art: { steel: .8, chips: .2 }, atg: { steel: .3, chips: .5, rare: .2 }, aag: { chips: .5, rare: .3, steel: .2 }, air: { comp: .3, chips: .3, rare: .2, oil: .2 }, shp: { steel: .6, chips: .2, oil: .2 } };
 let RAVC = { m: -1, g: null, v: {} };
 function resAv(n, r) {
-  if (RAVC.m !== G.month || RAVC.g !== G) RAVC = { m: G.month, g: G, v: {} }; const key = n.id + r; if (key in RAVC.v) return RAVC.v[key];
-  const id = n.id, imp = (1 - .5 * ((G.blk || {})[id] || 0)) * (G.blockade && G.blockade[id] ? .85 : 1), A = x => access(id, x); let v;
-  if (r === 'steel') v = bldN(id, 'steel') >= .5 ? 1 : Math.min(1, (.82 + .04 * tl(n, 'exc')) * imp);
-  else if (r === 'oil') { const a = A('oil'); v = a === 'own' ? 1 : Math.min(1, ((a === 'trade' ? .92 : a ? .85 : .55) + .03 * tl(n, 'fuel')) * imp); }
-  else if (r === 'rare') { const a = A('rare'); v = a === 'own' ? 1 : Math.min(1, ((a ? .9 : .6) + .04 * tl(n, 'exc')) * imp); }
-  else if (r === 'chips') v = bldN(id, 'elec') >= .5 ? Math.min(1, .95 + .01 * tl(n, 'chip')) : clamp((.72 + .04 * tl(n, 'chip')) * imp * (1 - 2 * ((n.sfx && n.sfx.rp) || 0)), .3, 1);
-  else v = bldN(id, 'chem') >= .5 ? 1 : Math.min(1, (.75 + .05 * tl(n, 'comp')) * imp);
+  if (RAVC.m !== G.month || RAVC.g !== G) RAVC = { m: G.month, g: G, v: {} };
+  const key = n.id + r;
+  if (key in RAVC.v) return RAVC.v[key];
+  const map = { steel: 'steel', oil: 'oil', rare: 'rare', chips: 'chips', comp: 'alu' };
+  const r8 = map[r] || r;
+  const cov = n.rsCov ? (n.rsCov[r8] ?? 1) : 1;
+  let v = clamp(cov, 0.3, 1);
+  if (r === 'chips') v *= (1 - 2 * ((n.sfx && n.sfx.rp) || 0));
   return (RAVC.v[key] = v);
 }
 const lineRes = (n, f) => { const I = RINP[f]; let s = 0, w = 0; for (const r in I) { s += I[r] * resAv(n, r); w += I[r]; } return w ? s / w : 1; };
@@ -10698,7 +11076,7 @@ function renderEco() {
   const n = N_(PL);
   return `${budgetHTML()}${economyHTML()}
   <div class="sect"><div class="eyebrow">Taxes (free)</div><div class="seg">${['Low', 'Normal', 'High'].map((l, k) => `<button data-act="tax${k}" aria-pressed="${taxLvl(n) === k}">${l}</button>`).join('')}</div></div>
-  ${financeHTML()}${resourcesHTML()}`;
+  ${financeHTML()}${resourcesHTML()}${rsHTML()}`;
 }
 function renderCB() { return `${cbHTML()}<div class="sect"><div class="eyebrow">How the bank works</div><p class="small muted">An independent bank sets its own rate by a Taylor rule and refuses rate cuts while inflation is above target and any money printing. Taking control of it lowers the credit rating. The bank's rate moves our borrowing costs (Economy tab) and growth; printing money raises inflation.</p></div>`; }
 function renderTech() {
@@ -11229,6 +11607,14 @@ document.body.addEventListener('input', e => {
 });
 document.addEventListener('toggle', e => { const d = e.target; if (d && d.dataset && d.dataset.blocdet) { if (d.open) UI.openBloc = +d.dataset.blocdet; else if (UI.openBloc === +d.dataset.blocdet) UI.openBloc = null; } }, true);
 document.body.addEventListener('change', async e => {
+  if (e.target.dataset && e.target.dataset.rslim) {
+    sendCmd({ kind: 'act', a: 'rslim', arg: null, o: { k: e.target.dataset.rslim, v: +e.target.value, free: true } });
+    return;
+  }
+  if (e.target.dataset && e.target.dataset.rsexp) {
+    sendCmd({ kind: 'act', a: 'rsexp', arg: null, o: { k: e.target.dataset.rsexp, v: e.target.value, free: true } });
+    return;
+  }
   if (e.target.dataset && e.target.dataset.gbud) { sendCmd({ kind: 'mil', a: 'bud', o: { k: e.target.dataset.gbud, v: +e.target.value } }).then(() => renderPanel()); return; }
   if (e.target.dataset && e.target.dataset.gcnl && e.target.value !== '') { sendCmd({ kind: 'mil', a: 'cnl', o: { k: e.target.dataset.gcnl, i: +e.target.value } }).then(r => { if (r && r.msg) toast(r.msg); renderPanel(); }); return; }
   if (e.target.dataset && e.target.dataset.meetk && UI.meetForm) { UI.meetForm.k = e.target.value; renderPanel(); return; }
