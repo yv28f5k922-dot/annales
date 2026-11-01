@@ -469,7 +469,7 @@ const GD = window.GAMEDATA;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const START_M = 10, START_Y = 2026; // November 2026
 const SAVE_KEY = 'annales-world-v2', AI_KEY = 'annales-world-ai';
-const BUILD = { n: 24.3, name: 'Kutuzov', date: '2026-11-01' };
+const BUILD = { n: 24.4, name: 'Bolivar', date: '2026-11-01' };
 const buildStr = () => `Build ${BUILD.n} “${BUILD.name}” (${BUILD.date})`;
 const vchipHTML = () => `<span class="vchip" title="${buildStr()}${G && G.buildFrom != null && G.buildFrom !== BUILD.n ? ' · this save began on build ' + G.buildFrom : ''}">B${BUILD.n} · ${BUILD.name}</span>`; // plan "Build names": shown in the top bar, the choice screen and settings; saved as G.build
 const RENAME = { 'Republic of Serbia': 'Serbia', 'United Republic of Tanzania': 'Tanzania', 'The Bahamas': 'Bahamas', 'eSwatini': 'Eswatini', 'Democratic Republic of the Congo': 'DR Congo', 'Republic of the Congo': 'Congo', 'Federated States of Micronesia': 'Micronesia', 'Spratly Is.': 'Spratly Islands' };
@@ -11265,9 +11265,10 @@ function tagsFor(t) { const me = PL; return `${isHuman(t) ? '<span class="tag pa
 function renderDiplo() {
   const me = PL, nb = nbNations(me), q = UI.dsearch.toLowerCase();
   const list = G.nations.filter(n => n.alive && n.id !== me && (!q || n.name.toLowerCase().includes(q))).sort((a, b) => (nb.has(b.id) - nb.has(a.id)) || (atWar(me, b.id) - atWar(me, a.id)) || gdpOf(b.id) - gdpOf(a.id));
-  const t = UI.selNation >= 0 && UI.selNation !== me && N_(UI.selNation).alive ? N_(UI.selNation) : null;
+  const gsel = UI.selNation >= 0 && isGN(UI.selNation) && N_(UI.selNation) ? N_(UI.selNation) : null;
+  const t = UI.selNation >= 0 && UI.selNation !== me && !gsel && N_(UI.selNation) && N_(UI.selNation).alive ? N_(UI.selNation) : null;
   const ap = apOf(PL) < 1 || pend(PL).length > 0;
-  let detail = '<p class="muted">Pick a country on the map or from the list.</p>';
+  let detail = gsel ? `<p class="muted">${esc(gsel.name)} is an armed group, not a state: back it, fight it or negotiate with it from the Intelligence tab (Armed groups) or from its province card. Pick a country on the map or from the list.</p>` : '<p class="muted">Pick a country on the map or from the list.</p>';
   if (t) {
     const w = atWar(me, t.id), small = ownedP(t.id).length <= 2, th = thread(t.id);
     detail = `<div class="sect"><div class="eyebrow">${esc(COUNTRY[t.id] ? COUNTRY[t.id].cont : 'Breakaway state')}${nb.has(t.id) ? ' · neighbour' : ''}</div>
@@ -11342,7 +11343,7 @@ function renderTrade() {
     ${dep.length ? `<p class="small">Spare-parts dependency: ${dep.map(([s, l]) => esc(nname(s)) + ' (' + l.map(([k, v]) => Math.round(v) + ' ' + esc((ARMS[k] ? ARMS[k].s : k.startsWith('eq:') ? FAMN(k.slice(3)) : k).toLowerCase())).join(', ') + ')').join('; ')}. An embargo by a supplier makes these weapons decay.</p>` : ''}</div>`;
 }
 function renderIntel() {
-  const me = PL, t = UI.selNation >= 0 && UI.selNation !== me && N_(UI.selNation).alive && !N_(UI.selNation).horde ? UI.selNation : null, sp = spyOf(me);
+  const me = PL, t = UI.selNation >= 0 && UI.selNation !== me && !isGN(UI.selNation) && N_(UI.selNation) && N_(UI.selNation).alive && !N_(UI.selNation).horde ? UI.selNation : null, sp = spyOf(me);
   const js = Object.keys(G.just || {}).filter(k => +k.split('>')[0] === me).map(k => [+k.split('>')[1], G.just[k]]).filter(([b, j]) => N_(b).alive && (j.on || j.v > 1));
   const list = G.nations.filter(x => x.alive && !x.horde && x.id !== me).sort((a, b) => (sp.net[b.id] || 0) - (sp.net[a.id] || 0) || gdpOf(b.id) - gdpOf(a.id)).slice(0, 30);
   return `${pendingHTML()}${counterIntelHTML()}${proxiesHTML()}
@@ -11445,7 +11446,7 @@ function profileHTML(id) {
   ${me != null && id !== me && !n.horde ? relBreakHTML(me, id) : ''}`;
 }
 function renderProf() {
-  const base = GRP() ? PM().nid : PL !== null ? PL : 0, id = UI.selNation >= 0 && N_(UI.selNation).alive ? UI.selNation : base;
+  const base = GRP() ? PM().nid : PL !== null ? PL : 0, id = UI.selNation >= 0 && !isGN(UI.selNation) && N_(UI.selNation) && N_(UI.selNation).alive ? UI.selNation : base;
   return `<div class="row">${id !== base ? `<button class="btn small" data-nation="${base}" data-pf="1">${PL !== null ? 'Our country' : 'Where we fight'}</button>` : ''}<span class="small muted" style="flex:3">Click any country on the map to see its profile.</span></div>${profileHTML(id)}`;
 }
 function grpDiploHTML() { return gnSponsorHTML() + grpDiploHTML0() + gnMsgHTML(); }
@@ -11494,13 +11495,21 @@ function grpDiploHTML0() {
     <p class="small muted">Neighbours: ${nb.map(x => esc(nname(x)) + ' ' + Math.round(rel(x, m.nid))).join(' · ')}</p></div>
   <div class="sect"><div class="eyebrow">Other armed groups in ${esc(n.name)}</div>${rivals.length ? rivals.map(x => `<p class="small"><b>${esc(x.name)}</b> · ${esc(x.ldr || '')} · ${fmtK(x.str)} · ${esc(x.state)} · backers ${sponsorsOf(x).map(nname).map(esc).join(', ') || 'none'}${milRel(m, x) ? ' · <b>' + ({ ally: 'our allies', split: 'allies, land divided', rival: 'our rivals' }[milRel(m, x)]) + '</b>' : ''}</p>`).join('') + '<p class="small muted">Make alliances, divide land or declare rivalries from the Movement tab.</p>' : '<p class="small muted">None.</p>'}</div>`;
 }
+// Build 24.4: an armed group's nation is removed when the group is destroyed; a selection pointing at it broke Diplomacy, Intelligence and Profile for good
+function selFix() { if (UI.selNation != null && UI.selNation >= 0 && !(N_(UI.selNation) && N_(UI.selNation).alive)) UI.selNation = -1; }
+function tabSafe(k) {
+  const F = (window.PANELS || TABFN)[k];
+  try { return F(); } catch (e) { console.error(e); }
+  UI.selNation = -1; UI.dsearch = '';
+  try { return F(); } catch (e) { console.error(e); return `<div class="sect"><p>This window hit an error and could not be drawn (${esc(e.message)}).</p><p class="muted small">Try another tab or reload the page; your game is saved.</p></div>`; }
+}
 function renderPanel() {
-  const b = document.getElementById('pbody'), st = b.scrollTop;
+  selFix(); const b = document.getElementById('pbody'), st = b.scrollTop;
   const focus = document.activeElement && document.activeElement.id;
   if (UI.editor) { document.getElementById('tabs').innerHTML = ''; b.innerHTML = editorHTML(); }
   else if (GRP()) { if (!TABS().some(t => t[0] === UI.tab)) UI.tab = 'grp'; renderTabs(); b.innerHTML = { grp: milPlayHTML, mil: gnMilHTML, gdip: grpDiploHTML, annals: renderAnnals, prof: renderProf }[UI.tab](); decorateSections(b); }
   else if (PL === null) { document.getElementById('tabs').innerHTML = ''; b.innerHTML = renderChoose(); }
-  else { renderTabs(); if (!TABS().some(t => t[0] === UI.tab)) UI.tab = 'realm'; const T0 = TABS().find(t => t[0] === UI.tab); b.innerHTML = `<div class="sheethead"><h2>${esc(T0[1])}</h2><button class="btn small winx" data-do="closesheet" aria-label="Close this window" title="Close">×</button></div><p class="tabsub">${esc(T0[2])}</p>` + (window.PANELS || TABFN)[UI.tab](); decorateSections(b); }
+  else { renderTabs(); if (!TABS().some(t => t[0] === UI.tab)) UI.tab = 'realm'; const T0 = TABS().find(t => t[0] === UI.tab); b.innerHTML = `<div class="sheethead"><h2>${esc(T0[1])}</h2><button class="btn small winx" data-do="closesheet" aria-label="Close this window" title="Close">×</button></div><p class="tabsub">${esc(T0[2])}</p>` + tabSafe(UI.tab); decorateSections(b); }
   b.scrollTop = st;
   if (focus && ['search', 'dsearch', 'decree', 'chatbox', 'summit-q', 'summit-text', 'bloc-name', 'advisor-q'].includes(focus)) { const el = document.getElementById(focus); if (el) { el.focus(); const v = el.value; try { el.setSelectionRange(v.length, v.length); } catch (e) { } } }
   const th = b.querySelector('.thread'); if (th && UI.tab === 'diplo') th.scrollIntoView({ block: 'nearest' });
