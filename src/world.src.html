@@ -1433,7 +1433,7 @@ function simulateMonth0() {
   treatyMonth(); diploMonth();
   scenarioMonth();
   historyMonth();
-  tradeMonth(); armsMonth(); aiLendLease(); marketMonth(); leaderMonth(); sepMonth(); brkMonth(); techMonth(); spaceMonth(); climateMonth(); militiaMonth(); gnMonth(); tunMonth(); gnWarsMonth(); bldMonth(); // step 21: group nations
+  tradeMonth(); armsMonth(); aiLendLease(); aiEqBuy(); marketMonth(); leaderMonth(); sepMonth(); brkMonth(); techMonth(); spaceMonth(); climateMonth(); militiaMonth(); gnMonth(); tunMonth(); gnWarsMonth(); bldMonth(); // step 21: group nations
   for (const n of G.nations) if (n.alive) armsSync(n);
   spyMonth(); justMonth();
   unMonth(); summitMonth(); // step 19: calendar, emergency sessions, recommendations
@@ -6912,7 +6912,7 @@ function aiForces(n, us) {
   if (want !== n.claw && R() < .2) n.claw = n.claw + Math.sign(want - n.claw);
   const need = {}; for (const u of us) { const e = nomEq(u); for (const k in e) need[k] = (need[k] || 0) + e[k] * (1 - (u.eqf ?? 1) + (war ? .25 : .1)); }
   { let tot = 0; for (const k of EQK) tot += Math.max(0, (need[k] || 0) - (n.eq[k] || 0)); if (!tot && (war || p !== 'develop')) for (const k of EQK) if (need[k] > 0) need[k] = (n.eq[k] || 0) + need[k] * .2; }
-  aiLines(n, need, war); // step 16: factories follow the shortfall (aircraft and ships replace losses and keep a reserve in war)
+  n.eqNeed = need; aiLines(n, need, war); // step 16: factories follow the shortfall (aircraft and ships replace losses and keep a reserve in war)
   if (!war && p === 'develop' && us.length && R() < .08) { const tr = troopsOf(n.id), cap = (MIL[n.a3] ? MIL[n.a3][0] : n.pop * 2.2) * 1.3; if (tr > cap) demob(n, us.reduce((a, b) => b.str > a.str ? b : a), 1); }
 }
 // a mechanisation programme: the default template takes vehicles, and the money buys the first of them
@@ -8199,6 +8199,52 @@ function aiLendLease() {
     const f = FAMS.filter(f => !AFAM[f]).sort((x, y) => stTot(n, y) * eqCost(n, y) - stTot(n, x) * eqCost(n, x))[0], c = stTot(n, f) * .15; if (!(c * eqCost(n, f) > .3)) continue;
     const r = stTake(n, f, c); const m = stModel(f, r.q); stPut(B, f, m, r.c, r.q); addRel(n.id, b, 6); relAdd(n.id, b, 't', 3); eqRisk(n.id, b, f, m, r.c, r.c * eqCost(n, f), true);
     log(`${n.name} sends ${fmtN(r.c)} ${FAMN(f).toLowerCase()} to ${B.name} under lend-lease.`, isHuman(b) ? 'event' : 'news', [n.id, b], 'mil');
+  }
+}
+// AI: countries at war or under threat that are short of equipment buy it from friendly suppliers
+function aiEqBuy() {
+  for (const n of G.nations) {
+    if (!n.alive || isHuman(n.id) || n.horde || n.id >= GNB) continue;
+    if (!warsOf(n.id).length && n.posture !== 'defend' && !(n.mem && G.month - n.mem.w < 36)) continue;
+    if (n.lastEqBuy != null && G.month - n.lastEqBuy < 3) continue;
+    if (R() >= .3) continue;
+    if (!n.eqNeed || !(n.gold > 0)) continue;
+    forcesOf(n);
+    const fams = EQK.filter(k => (n.eqNeed[k] || 0) > (n.eq[k] || 0))
+      .sort((a, b) => ((n.eqNeed[b] - (n.eq[b] || 0)) * eqCost(n, b)) - ((n.eqNeed[a] - (n.eq[a] || 0)) * eqCost(n, a)));
+    if (!fams.length) continue;
+    let deal = null;
+    for (const f of fams) {
+      let best = null;
+      for (const S of G.nations) {
+        if (!S.alive || isHuman(S.id) || S.horde || S.id === n.id || S.id >= GNB) continue;
+        if (warsOf(S.id).length || S.posture === 'defend' || S.posture === 'war') continue;
+        const lot = eqLot(S, f), b = eqm(S, f);
+        for (const m in b) {
+          const it = b[m]; if (!it || it[0] <= 2 * lot) continue;
+          const price = eqPrice(S, f, m, lot);
+          if (price > n.gold * .25) continue;
+          if (eqWants(n, S.id, f, m, lot, price, false)) continue;
+          const r = rel(n.id, S.id), qual = it[1];
+          if (!best || r > best.r || (r === best.r && qual > best.qual)) {
+            best = { S, f, m, q: lot, price, r, qual };
+          }
+        }
+      }
+      if (best) { deal = best; break; }
+    }
+    if (!deal) continue;
+    const { S, f, m, q, price } = deal;
+    const r = stTake(S, f, q, m);
+    if (r.c > 0) {
+      stPut(n, f, m, r.c, r.q);
+      n.gold -= price; S.gold += price;
+      addRel(S.id, n.id, 2);
+      eqRisk(S.id, n.id, f, m, r.c, price, false);
+      n.lastEqBuy = G.month;
+      const vis = isHuman(n.id) || isHuman(S.id) || (G.humans || []).some(h => isAllied(h, n.id) || isAllied(h, S.id));
+      if (vis) log(`${n.name} buys ${fmtN(r.c)} ${(MODELS[m] ? MODELS[m].l : FAMN(f)).toLowerCase()} from ${S.name}.`, 'econ', [n.id, S.id], 'econ');
+    }
   }
 }
 // ---- construction queues: a quantity on each building; one after another, paid as each starts ----
