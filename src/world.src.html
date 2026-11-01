@@ -469,7 +469,7 @@ const GD = window.GAMEDATA;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const START_M = 10, START_Y = 2026; // November 2026
 const SAVE_KEY = 'annales-world-v2', AI_KEY = 'annales-world-ai';
-const BUILD = { n: 24, name: 'Nehru', date: '2026-11-01' };
+const BUILD = { n: 24.1, name: 'Patton', date: '2026-11-01' };
 const buildStr = () => `Build ${BUILD.n} “${BUILD.name}” (${BUILD.date})`;
 const vchipHTML = () => `<span class="vchip" title="${buildStr()}${G && G.buildFrom != null && G.buildFrom !== BUILD.n ? ' · this save began on build ' + G.buildFrom : ''}">B${BUILD.n} · ${BUILD.name}</span>`; // plan "Build names": shown in the top bar, the choice screen and settings; saved as G.build
 const RENAME = { 'Republic of Serbia': 'Serbia', 'United Republic of Tanzania': 'Tanzania', 'The Bahamas': 'Bahamas', 'eSwatini': 'Eswatini', 'Democratic Republic of the Congo': 'DR Congo', 'Republic of the Congo': 'Congo', 'Federated States of Micronesia': 'Micronesia', 'Spratly Is.': 'Spratly Islands' };
@@ -2558,6 +2558,9 @@ const RSBASE = {
 const RSMKT_BASE = { oil: 7, gas: 4, uran: 0.5, steel: 6, alu: 2, rare: 0.5, chips: 5, grain: 3 };
 const RSMKT_ELAS = { oil: 1.5, gas: 1.2, uran: 0.8, steel: 0.6, alu: 0.6, rare: 1.0, chips: 1.0, grain: 1.6 };
 
+// display: every deposit in a province (old four + uranium, iron ore, bauxite) and their labels and colours
+const DEPA = RES.map(x => x.slice()); for (const r in DEP2P) for (const i of DEP2P[r]) if (!DEPA[i].includes(r)) DEPA[i].push(r);
+const RDISP = { ...RESDEF, steel: { l: 'Steel', c: '#8d97a3' }, alu: { l: 'Aluminium', c: '#b9c4cf' }, chips: { l: 'Semiconductors', c: '#6a72d6' }, grain: { ...RESDEF.grain, l: 'Food' }, uran: { l: 'Uranium', c: '#5cae3e' }, iron: { l: 'Iron ore and coal', c: '#9a6a48' }, baux: { l: 'Bauxite', c: '#c97b3d' } };
 function rsProd(n) {
   const p = { oil: 0, gas: 0, uran: 0, steel: 0, alu: 0, rare: 0, chips: 0, grain: 0 };
   const id = n.id;
@@ -3705,7 +3708,7 @@ function constructionHTML() {
   <div class="sect"><div class="eyebrow">${esc(PN(i))}</div>
     <div class="kv"><div><b>${G.dev[i]}</b><span>Development</span></div><div><b>${fmtK(G.pop[i] * 1000)}</b><span>People</span></div><div><b>${Math.round(labourOf(i))}k / ${jobs}k</b><span>Industrial workers / jobs</span></div>
       <div><b>${list.length}/${bldSlots(i)}</b><span>Building slots</span></div><div><b>${L[i] ? RAILL[L[i]] : 'None'}</b><span>Railway</span></div><div><b>${linksAt(i)}</b><span>Road links</span></div>
-      <div><b>${G.fort[i]}</b><span>Forts</span></div><div><b>${hasAirbase(i) ? 'Yes' : 'No'}</b><span>Airbase</span></div><div><b>${RES[i].length ? RES[i].map(r => RESDEF[r].l).join(', ') : PROV[i].port >= 0 ? 'Port' : '—'}</b><span>${RES[i].length ? 'Resources' : 'Coast'}</span></div></div>
+      <div><b>${G.fort[i]}</b><span>Forts</span></div><div><b>${hasAirbase(i) ? 'Yes' : 'No'}</b><span>Airbase</span></div><div><b>${DEPA[i].length ? DEPA[i].map(r => RDISP[r].l).join(', ') : PROV[i].port >= 0 ? 'Port' : '—'}</b><span>${RES[i].length ? 'Resources' : 'Coast'}</span></div></div>
     ${G.ctrl[i] !== me ? `<p class="small neg">Occupied by ${esc(nname(G.ctrl[i]))}: its buildings have stopped${ben >= 0 ? ' and now serve the occupier at half strength' : ''}.</p>` : ''}
     ${list.length ? `<div class="bldlist">${list.map(b => `<div class="bldrow"><i class="bico" style="background:${BLD[b.t].c}">${BLD[b.t].s}</i><span><b>${esc(BLD[b.t].l)}</b><small>${esc(BLD[b.t].d)}</small>${G.month >= b.done ? (Lg => `<small class="mono">${Lg.jobs}k jobs · staffed ${Math.round(Lg.staff * 100)}% · output ${fmtB(Lg.prod)} · wages ${fmtB(Lg.wages)} · inputs ${fmtB(Lg.inputs)} · running ${fmtB(Lg.run)} · profit ${fmtB(Lg.profit)} · tax ${fmtB(Lg.tax)} a month</small>`)(bldLedger(i, b)) : ''}</span>${G.month < b.done ? `<span class="tag pact">Ready ${esc(shortDate(b.done))}</span>` : ben === me ? '<span class="tag ally">Working</span>' : '<span class="tag war">Idle</span>'}</div>`).join('')}</div>` : '<p class="small muted">No buildings yet.</p>'}</div>
   <div class="sect"><div class="eyebrow">Options in ${esc(PN(i))}</div>
@@ -4689,7 +4692,7 @@ const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, 
 function modeColor(i, o) {
   const m = UI.mode;
   if (m === 'pop') { const d = Math.log10(Math.max(1e-3, G.pop[i] / Math.max(1, PAREA[i])) * 1e4); const t = clamp((d - .3) / 3.2, 0, 1); return t < .5 ? lerp3([232, 224, 190], [226, 150, 80], t * 2) : lerp3([226, 150, 80], [130, 30, 40], (t - .5) * 2); }
-  if (m === 'resources') { const r = RES[i]; if (!r.length) return [110, 112, 108]; return hexToRgb(RESDEF[r[0]].c === '#1d1d1d' ? '#4a3a2a' : RESDEF[r[0]].c); }
+  if (m === 'resources') { const r = DEPA[i]; if (!r.length) return [110, 112, 108]; return hexToRgb(RDISP[r[0]].c === '#1d1d1d' ? '#4a3a2a' : RDISP[r[0]].c); }
   if (m === 'supply') { if (PL === null) return [110, 112, 108]; const v = supNet(PL).L[i]; if (!(v > .01)) return [92, 94, 92]; if (G.owner[i] === PL && G.ctrl[i] === PL) return v >= .95 ? [70, 150, 85] : [100, 150, 80]; return v >= .85 ? [96, 170, 110] : v >= .7 ? [180, 190, 90] : v >= .55 ? [220, 150, 70] : [190, 80, 60]; }
   if (m === 'gov') { return REGIME_COL[govOf(N_(o))] || [120, 120, 120]; }
   if (m === 'transit') { const c = N_(o) ? N_(o).color : [120, 120, 120]; return lerp3(c, [58, 62, 66], .72); }
@@ -4709,7 +4712,7 @@ function legendHTML() {
   else if (m === 'blocs') { t = 'Blocs'; body = (G.blocs || []).filter(b => b.members.length > 1).sort((a, b) => b.members.length - a.members.length).slice(0, 6).map(b => row(paletteOf(b.flag)[0] || '#888', b.name.length > 26 ? b.name.slice(0, 25) + '…' : b.name)).join('') + row([96, 100, 98], 'No bloc'); }
   else if (m === 'terrain') { t = 'Terrain'; body = Object.values(TER).map(x => row(x.col, x.l)).join(''); }
   else if (m === 'pop') { t = 'Population density'; body = grad('rgb(232,224,190)', 'rgb(130,30,40)', 'sparse', 'dense', 'rgb(226,150,80)'); }
-  else if (m === 'resources') { t = 'Strategic resources'; body = Object.entries(RESDEF).map(([k, r]) => row(k === 'oil' ? '#4a3a2a' : r.c, r.l)).join('') + row([110, 112, 108], 'None'); }
+  else if (m === 'resources') { t = 'Resource deposits'; body = Object.entries(RDISP).filter(([k]) => !['steel', 'alu', 'chips'].includes(k)).map(([k, r]) => row(k === 'oil' ? '#4a3a2a' : r.c, r.l)).join('') + row([110, 112, 108], 'None'); }
   else if (m === 'supply') { t = 'Supply from our depots'; body = PL === null ? '<span class="muted">Choose a nation first</span>' : row([70, 150, 85], 'Our land near a hub') + row([100, 150, 80], 'Our land') + row([96, 170, 110], 'Beyond: 85%+') + row([180, 190, 90], '70–85%') + row([220, 150, 70], '55–70%') + row([190, 80, 60], 'Below 55%') + row([92, 94, 92], 'Out of reach'); }
   else if (m === 'air') { t = 'Air & sea control'; body = PL === null ? '<span class="muted">Choose a nation first</span>' : row([70, 160, 220], 'Contested: our side holds the sky') + row([200, 70, 60], 'Contested: the enemy holds it') + row([80, 120, 150], 'Our side flies, no enemy') + row([70, 74, 78], 'No air activity') + '<span class="muted">Dashed lines: air regions. Dots: sea zones (blue ours, red theirs)</span>'; }
   else if (m === 'transit') { t = 'Transit'; body = row([242, 234, 214], 'Double-track trunk') + row([200, 190, 165], 'Main line') + row([150, 140, 120], 'Branch line (zoom in)') + row([224, 168, 58], 'Rail hub: capital or supply hub') + row([30, 24, 18], 'Roads (zoom in)'); }
@@ -5683,7 +5686,8 @@ function marketsHTML() {
   return `<div class="sect"><div class="eyebrow">Markets</div>
     <div class="kv"><div><b>${Math.round(M.w)}</b><span>World index</span></div><div><b class="${ch < 0 ? 'neg' : 'pos'}">${ch >= 0 ? '+' : ''}${ch.toFixed(1)}%</b><span>Past year</span></div><div><b>${Math.round(n.idx || 100)}</b><span>Our exchange</span></div></div>
     ${spark(last)}
-    <div class="qgrid">${Object.keys(RESDEF).map(r => { const p = G.price ? G.price[r] : 1, ph = (M.ph || {})[r] || []; return `<div class="qrow" style="grid-template-columns:auto 70px minmax(0,1fr) auto">${RES_ICON(r)}<span>${RESDEF[r].l}</span>${spark(ph.slice(-24), 120, 18, RESDEF[r].c === '#1d1d1d' ? '#bbb' : RESDEF[r].c)}<b>${p.toFixed(2)}×</b></div>`; }).join('')}</div>
+    <div class="eyebrow" style="margin-top:4px">Commodities ($B a unit)</div>
+    <div class="qgrid">${Object.keys(RS8).map(r => { const m = (G.rmk || {})[r] || { p: RSMKT_BASE[r], hist: [] }, c = (RDISP[r] && RDISP[r].c) || '#d2a750'; return `<div class="qrow" style="grid-template-columns:auto 70px minmax(0,1fr) auto">${RDISP[r] ? RES_ICON(r) : '<span class="ricon" style="background:#d2a750"></span>'}<span>${RS8[r]}</span>${spark((m.hist || []).slice(-24), 120, 18, c === '#1d1d1d' ? '#bbb' : c)}<b>$${m.p.toFixed(2)}</b></div>`; }).join('')}</div>
     <p class="small muted">Share prices follow growth, stability, wars and sanctions; a strong exchange adds a little to revenue and confidence. Crashes and commodity shocks come without warning.</p></div>`;
 }
 
@@ -9719,7 +9723,7 @@ function draw(now) {
   // resistance and unrest
   if (k > 1.1) { const RS = G.resist || {}, UN = G.unrest || {}; for (let i = 0; i < NP; i++) { const v = Math.max(RS[i] || 0, UN[i] || 0); if (v < 40) continue; const [x, y] = S2(PROV[i].x, PROV[i].y); if (x < -20 || x > cw + 20 || y < -20 || y > ch + 20) continue; ctx.save(); ctx.translate(x - 14, y + 9); ctx.fillStyle = v > 70 ? '#e8563f' : '#e89a3f'; ctx.beginPath(); ctx.moveTo(0, -7); ctx.quadraticCurveTo(5, -2, 4, 2); ctx.quadraticCurveTo(3, 6, 0, 6); ctx.quadraticCurveTo(-4, 6, -4, 2); ctx.quadraticCurveTo(-4, -1, -1, -3); ctx.quadraticCurveTo(0, -5, 0, -7); ctx.fill(); ctx.restore(); } }
   // resources
-  if (k > 1.3) for (let i = 0; i < NP; i++) { if (!RES[i].length) continue; const [x, y] = S2(PROV[i].x, PROV[i].y); if (x < -20 || x > cw + 20 || y < -20 || y > ch + 20) continue; RES[i].forEach((r, j) => drawRes(r, x + 10 + j * 13, y + 9)); }
+  if (k > 1.3) for (let i = 0; i < NP; i++) { if (!DEPA[i].length) continue; const [x, y] = S2(PROV[i].x, PROV[i].y); if (x < -20 || x > cw + 20 || y < -20 || y > ch + 20) continue; DEPA[i].forEach((r, j) => drawRes(r, x + 10 + j * 13, y + 9)); }
   // migration and refugees
   if (k > .8 && G.flows) for (const f of G.flows.slice().sort((a, b) => b.m - a.m).slice(0, 40)) {
     const A = S2(PROV[f.a].x, PROV[f.a].y), B = S2(PROV[f.b].x, PROV[f.b].y); if (Math.abs(PROV[f.a].x - PROV[f.b].x) > WW / 2) continue;
@@ -9873,9 +9877,12 @@ function drawUnit(u, x, y, sel, embarked) {
   u._hit = [x - w / 2 - 3, y - 11, x + w / 2 + 3, y + 9];
 }
 function drawRes(r, x, y) {
-  ctx.save(); ctx.fillStyle = 'rgba(244,234,210,.92)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = RESDEF[r].c; ctx.strokeStyle = RESDEF[r].c;
+  ctx.save(); ctx.fillStyle = 'rgba(244,234,210,.92)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = RDISP[r].c; ctx.strokeStyle = RDISP[r].c;
   if (r === 'oil') { ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.quadraticCurveTo(x + 4, y + 1, x, y + 4); ctx.quadraticCurveTo(x - 4, y + 1, x, y - 4.5); ctx.fill(); }
   else if (r === 'gas') { ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.quadraticCurveTo(x + 4.5, y, x + 1.5, y + 4); ctx.lineTo(x - 1.5, y + 4); ctx.quadraticCurveTo(x - 4.5, y, x, y - 4.5); ctx.fill(); }
+  else if (r === 'uran') { ctx.beginPath(); for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * 2 * Math.PI / 3; ctx.moveTo(x, y); ctx.arc(x, y, 4.2, a - .5, a + .5); } ctx.fill(); ctx.fillStyle = 'rgba(244,234,210,.92)'; ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.fill(); }
+  else if (r === 'iron') { ctx.fillRect(x - 3.5, y - 3.5, 7, 7); }
+  else if (r === 'baux') { ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 4.2, y + 3.5); ctx.lineTo(x - 4.2, y + 3.5); ctx.closePath(); ctx.fill(); }
   else if (r === 'rare') { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * 3.8, y + Math.sin(a) * 3.8); } ctx.closePath(); ctx.fill(); }
   else { ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x, y + 4.5); ctx.lineTo(x, y - 4); ctx.stroke(); for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(x - 1.6, y - 2.5 + k * 2.2, 1.6, .9, -.6, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x + 1.6, y - 2.5 + k * 2.2, 1.6, .9, .6, 0, Math.PI * 2); ctx.fill(); } }
   ctx.restore();
@@ -10625,7 +10632,7 @@ function provCard(i) {
     ${resistHTML(i)}
     ${sepHTML(i)}
     ${milProvHTML(i)}
-    <p class="small">${(G.pop[i] * 1000 >= 1000 ? (G.pop[i]).toFixed(1) + 'M' : Math.round(G.pop[i] * 1000) + 'k')} people${RES[i].length ? ' · ' + RES[i].map(r => RES_ICON(r) + ' ' + RESDEF[r].l).join(', ') : ''}${linksAt(i) ? ' · road and rail level ' + linksAt(i) : ''}</p>
+    <p class="small">${(G.pop[i] * 1000 >= 1000 ? (G.pop[i]).toFixed(1) + 'M' : Math.round(G.pop[i] * 1000) + 'k')} people${DEPA[i].length ? ' · ' + DEPA[i].map(r => RES_ICON(r) + ' ' + RDISP[r].l).join(', ') : ''}${linksAt(i) ? ' · road and rail level ' + linksAt(i) : ''}</p>
     <div class="kv"><div><b>${G.dev[i]}</b><span>Develop.</span></div><div><b>${G.fort[i]}</b><span>Defences</span></div><div><b>${fmtB(G.pv[i] * G.dev[i])}</b><span>Output</span></div></div>
     ${mine ? `<div class="btngrid">
       <button class="abtn" data-act="develop" data-p="${i}" ${ap ? 'disabled' : ''}><b>Develop</b><small>${fmtB(devCost(i))}</small></button>
@@ -10733,7 +10740,7 @@ function settingsHTML() {
   </div></div>` : `<div><button class="btn small" data-do="cheatson">Turn on cheats</button></div>`}`;
 }
 const netIncome = n => revenue(n) + resIncome(n.id) - upkeep(n) - budgetCost(n);
-const RES_ICON = r => `<span class="ricon" style="background:${RESDEF[r].c}" title="${RESDEF[r].l}"></span>`;
+const RES_ICON = r => `<span class="ricon" style="background:${RDISP[r].c}" title="${RDISP[r].l}"></span>`;
 function budgetHTML() {
   const n = N_(PL), b = n.budget || defaultBudget(n);
   const hint = { mil: 'training, reserves, officers', wel: 'stability, the public', hlt: 'stability, population growth', edu: 'technology', rsc: 'technology, faster', inf: 'roads and rail, growth', ind: 'industry, jobs', sub: 'business approval, prices', svc: 'tax collection, order' };
@@ -11120,9 +11127,9 @@ function renderRealm() {
 function renderPol() { return `${pendingHTML()}<div class="sect"><div class="eyebrow">Head of government</div>${leaderHTML(N_(PL), true)}</div>${politicsHTML()}${cabinetHTML()}`; }
 function renderEco() {
   const n = N_(PL);
-  return `${budgetHTML()}${economyHTML()}
+  return `${budgetHTML()}${rsHTML()}${economyHTML()}
   <div class="sect"><div class="eyebrow">Taxes (free)</div><div class="seg">${['Low', 'Normal', 'High'].map((l, k) => `<button data-act="tax${k}" aria-pressed="${taxLvl(n) === k}">${l}</button>`).join('')}</div></div>
-  ${financeHTML()}${resourcesHTML()}${rsHTML()}`;
+  ${financeHTML()}`;
 }
 function renderCB() { return `${cbHTML()}<div class="sect"><div class="eyebrow">How the bank works</div><p class="small muted">An independent bank sets its own rate by a Taylor rule and refuses rate cuts while inflation is above target and any money printing. Taking control of it lowers the credit rating. The bank's rate moves our borrowing costs (Economy tab) and growth; printing money raises inflation.</p></div>`; }
 function renderTech() {
@@ -11312,7 +11319,7 @@ function prStrengths(n) {
 function profileHTML(id) {
   const n = N_(id), me = PL, R = ranks(), MR = { rank: R.mil[id] || '–' }, E = n.eco || {}, own = ownedP(id);
   const fr = [], ri = []; for (const x of G.nations) if (x.alive && !x.horde && x.id !== id) { const r = rel(id, x.id); fr.push([x.id, r]); } fr.sort((a, b) => b[1] - a[1]); ri.push(...fr.slice(-3).reverse());
-  const res = {}; for (const i of own) if (producing(i)) for (const r of RES[i]) res[r] = (res[r] || 0) + 1;
+  const res = {}; for (const i of own) if (producing(i)) for (const r of DEPA[i]) res[r] = (res[r] || 0) + 1;
   const bl = {}; for (const i of own) for (const b of bldOf(i)) if (G.month >= b.done) bl[b.t] = (bl[b.t] || 0) + 1;
   const bud = BUDGET.map(([k, l]) => [l, (n.budget || {})[k] || 0]).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const W = (tradeWeb().W[id] || []).slice(0, 3), [S, WK] = prStrengths(n), sees = id === me || seesPol(me ?? id, id);
@@ -11328,7 +11335,7 @@ function profileHTML(id) {
   <div class="sect"><div class="eyebrow">Economy</div><div class="kv"><div><b>${fmtB(gdpOf(id))}</b><span>GDP</span></div><div><b>$${Math.round(gdpOf(id) / Math.max(.001, n.pop) * 1000).toLocaleString('en-US')}</b><span>Per person</span></div><div><b>${pctS(E.g || 0)}</b><span>Growth</span></div>
     <div><b>${(E.infl || 0).toFixed(1)}%</b><span>Inflation</span></div><div><b>${(E.unemp || 0).toFixed(1)}%</b><span>Unemployment</span></div><div><b>${Math.round(debtRatio(n) * 100)}%</b><span>Debt · ${rating(n)[1]}</span></div></div>
     <p class="small">Strategy: ${esc((ESTRAT[n.estrat] || { l: 'mixed' }).l)} · spends most on ${bud.map(([l, v]) => esc(l.toLowerCase()) + ' ' + Math.round(v) + '%').join(', ')}${W.length ? ' · trades most with ' + W.map(([b, s]) => esc(nname(b)) + ' ' + Math.round(s * 100) + '%').join(', ') : ''}</p>
-    <p class="small">Resources: ${Object.keys(res).length ? Object.entries(res).map(([r, k]) => esc(RESDEF[r].l) + ' ×' + k).join(', ') : 'none of note'} · industry: ${bl.arms || 0} military and ${bl.civ || 0} civilian factories, ${Object.values(bl).reduce((a, b) => a + b, 0)} buildings · ${railKm(id)} rail sections · ${labsOf(n)} research labs</p></div>
+    <p class="small">Resources: ${Object.keys(res).length ? Object.entries(res).map(([r, k]) => esc(RDISP[r].l) + ' ×' + k).join(', ') : 'none of note'} · industry: ${bl.arms || 0} military and ${bl.civ || 0} civilian factories, ${Object.values(bl).reduce((a, b) => a + b, 0)} buildings · ${railKm(id)} rail sections · ${labsOf(n)} research labs</p></div>
   <div class="sect"><div class="eyebrow">Military and technology</div><div class="kv"><div><b>${fmtK(troopsOf(id))}</b><span>Troops</span></div><div><b>${Math.round(shipsOf(id))}</b><span>Warships</span></div><div><b>${Math.round(planesOf(id))}</b><span>Aircraft</span></div>
     <div><b>${Math.round(n.tech * 100)}%</b><span>Equipment</span></div><div><b>${(n.techs || []).length}</b><span>Technologies</span></div><div><b>${nukesOf(id) ? (nukesOf(id) >= 1000 ? '1000s' : '~' + Math.round(nukesOf(id) / 10) * 10) : '0'}</b><span>Warheads</span></div></div>
     <p class="small">${n.doct ? 'Doctrine: ' + esc(DOCT[n.doct]) + ' · ' : ''}${n.claw != null ? esc(lawOf(n).l) + ' · ' : ''}${(n.progs || []).length ? 'programmes: ' + esc(n.progs.join(', ')) : 'no national programmes'}</p>${rankHTML(id)}</div>
